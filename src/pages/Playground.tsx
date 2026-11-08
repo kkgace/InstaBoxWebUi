@@ -3,7 +3,8 @@ import { useMemo, useState } from 'react';
 import { Send, Search } from 'lucide-react';
 import catalog from '@/api/openapi-paths.json';
 import { api, errText } from '@/api/client';
-import { Card, Button, Badge, ErrorBox, JsonView, Field, Input, Textarea, Select, Tabs } from '@/components/ui';
+import { useT } from '@/i18n';
+import { Card, Button, Badge, ErrorBox, JsonView, Field, Input, Textarea, Tabs } from '@/components/ui';
 
 interface Op { m: string; p: string; s: string; d: string; g: string; auth: string; params: { name: string; in: string; required: boolean }[]; body: { ref?: string | null; props?: string[] } | null }
 interface Catalog { ops: Op[]; bodySchemas: Record<string, Record<string, string>> }
@@ -20,41 +21,38 @@ const METHOD_COLOR: Record<string, string> = {
 };
 
 export default function Playground() {
-  const [group, setGroup] = useState('全部');
+  const { t } = useT();
+  const [group, setGroup] = useState('__all');
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<Op | null>(null);
 
   const ops = useMemo(() => C.ops.filter((o) =>
-    (group === '全部' || o.g === group) &&
+    (group === '__all' || o.g === group) &&
     (!q || o.p.toLowerCase().includes(q.toLowerCase()) || o.s.toLowerCase().includes(q.toLowerCase()))
   ), [group, q]);
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-lg font-bold">API 控制台</h1>
-        <p className="text-xs text-dim">InstaBox 全部 {C.ops.length} 个 API 操作。选中端点直接在浏览器里发起请求（经本地代理，带你的 API Key）。</p>
+        <h1 className="text-lg font-bold">{t('pg.title')}</h1>
+        <p className="text-xs text-dim">{t('pg.desc', { n: C.ops.length })}</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-5">
-        {/* 端点列表 */}
         <Card className="lg:col-span-2">
           <div className="mb-2 flex gap-2">
             <div className="relative flex-1">
               <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-dim" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索路径/摘要…" className="w-full pl-7" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('pg.searchPh')} className="w-full pl-7" />
             </div>
           </div>
-          <div className="mb-2 flex flex-wrap gap-1">
-            {['全部', ...GROUPS].map((g) => (
-              <button
-                key={g}
-                onClick={() => setGroup(g)}
-                className={`rounded px-2 py-0.5 text-xs ${group === g ? 'bg-sky-500/15 text-sky-400' : 'text-dim hover:bg-white/5'}`}
-              >{g}</button>
-            ))}
-          </div>
-          <div className="max-h-[520px] space-y-1 overflow-y-auto">
+          <Tabs
+            active={group}
+            onChange={setGroup}
+            className="!border-b-0"
+            tabs={[{ key: '__all', label: t('common.all') }, ...GROUPS.map((g) => ({ key: g, label: g }))]}
+          />
+          <div className="max-h-[520px] space-y-1 overflow-y-auto pt-2">
             {ops.map((o, i) => (
               <button
                 key={`${o.m}${o.p}${i}`}
@@ -66,13 +64,12 @@ export default function Playground() {
                 <span className="max-w-36 truncate text-[10px] text-dim" title={o.s}>{o.s}</span>
               </button>
             ))}
-            {ops.length === 0 && <div className="py-6 text-center text-sm text-dim">无匹配</div>}
+            {ops.length === 0 && <div className="py-6 text-center text-sm text-dim">{t('common.none')}</div>}
           </div>
         </Card>
 
-        {/* 请求构造器 */}
-        <Card className="lg:col-span-3" title={sel ? `${sel.m} ${sel.p}` : '选择左侧端点'}>
-          {sel ? <RequestBuilder key={`${sel.m}${sel.p}`} op={sel} /> : <div className="py-10 text-center text-sm text-dim">从左侧选择一个端点开始</div>}
+        <Card className="lg:col-span-3" title={sel ? `${sel.m} ${sel.p}` : t('pg.pick')}>
+          {sel ? <RequestBuilder key={`${sel.m}${sel.p}`} op={sel} /> : <div className="py-10 text-center text-sm text-dim">{t('pg.pickHint')}</div>}
         </Card>
       </div>
     </div>
@@ -80,14 +77,14 @@ export default function Playground() {
 }
 
 function RequestBuilder({ op }: { op: Op }) {
+  const { t } = useT();
   const [path, setPath] = useState(op.p);
   const [query, setQuery] = useState<Record<string, string>>({});
   const [bodyText, setBodyText] = useState(() => {
     if (!op.body?.ref) return op.body ? '{\n  \n}' : '';
     const schema = C.bodySchemas[op.body.ref];
     if (!schema) return '{\n  \n}';
-    const lines = Object.entries(schema).map(([k, t]) => `  "${k}": null${'' /* eslint-disable-line */},  // ${t}`);
-    return `{\n${lines.join('\n').replace(/,  \//g, ',  //').replace(/,\n/g, '\n').replace(/null,  \//g, 'null,  //')}\n}`;
+    return `{\n${Object.entries(schema).map(([k, ty]) => `  "${k}": null,  // ${ty}`).join('\n')}\n}`;
   });
   const [resp, setResp] = useState<unknown>(null);
   const [respStatus, setRespStatus] = useState<number | null>(null);
@@ -111,11 +108,10 @@ function RequestBuilder({ op }: { op: Op }) {
     const raw = bodyText.trim();
     if (!raw) return {};
     try {
-      // 去掉 // 注释行再解析
       const cleaned = raw.replace(/^[ \t]*\/\/.*$/gm, '').replace(/,(\s*[}\]])/g, '$1');
       return JSON.parse(cleaned);
     } catch {
-      return raw; // 原样发送（上游会报错并回显）
+      return raw;
     }
   };
 
@@ -133,12 +129,11 @@ function RequestBuilder({ op }: { op: Op }) {
         body: hasBody ? buildBody() : undefined,
       });
       setResp(r);
-      // api() 不返回状态码；200-299 视为成功
       setRespStatus(200);
     } catch (e) {
-      const anyE = e as { status?: number; message?: string };
+      const anyE = e as { status?: number };
       setRespStatus(anyE.status ?? 0);
-      setResp({ error: e instanceof Error ? errText(e) : String(e), detail: e instanceof Object ? e : undefined });
+      setResp({ error: e instanceof Error ? errText(e) : String(e) });
       if (!(e instanceof Error)) setErr(String(e));
     }
     setBusy(false);
@@ -149,16 +144,16 @@ function RequestBuilder({ op }: { op: Op }) {
   return (
     <div className="space-y-3">
       <div className="text-xs text-dim">{op.s}{op.d ? ` — ${op.d}` : ''}</div>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Badge className={METHOD_COLOR[op.m]}>{op.m}</Badge>
-        <Input readOnly value={p} className="mono flex-1 text-xs" />
-        <Badge className="border-line">{op.auth === 'apikey' ? 'API Key' : '需登录会话'}</Badge>
+        <Input readOnly value={p} className="mono min-w-0 flex-1 text-xs" />
+        <Badge className="border-line">{op.auth === 'apikey' ? t('pg.apiKey') : t('pg.needSession')}</Badge>
       </div>
 
       {pathParams.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {pathParams.map((pp) => (
-            <Field key={pp.name} label={`路径参数 ${pp.name}${pp.required ? ' *' : ''}`}>
+            <Field key={pp.name} label={t('pg.pathParams', { n: pp.name, req: pp.required ? ' *' : '' })}>
               <Input
                 value={query[`__path_${pp.name}`] || ''}
                 onChange={(e) => setQuery((q0) => ({ ...q0, [`__path_${pp.name}`]: e.target.value }))}
@@ -173,7 +168,7 @@ function RequestBuilder({ op }: { op: Op }) {
       {queryParams.length > 0 && (
         <div className="grid grid-cols-2 gap-2">
           {queryParams.map((qp) => (
-            <Field key={qp.name} label={`query ${qp.name}${qp.required ? ' *' : ''}`}>
+            <Field key={qp.name} label={t('pg.queryParams', { n: qp.name, req: qp.required ? ' *' : '' })}>
               <Input
                 value={query[qp.name] || ''}
                 onChange={(e) => setQuery((q0) => ({ ...q0, [qp.name]: e.target.value }))}
@@ -186,14 +181,14 @@ function RequestBuilder({ op }: { op: Op }) {
       )}
 
       {op.body && (
-        <Field label={`请求体${op.body.ref ? `（${op.body.ref}）` : ''}`} hint="null 处填值；// 注释会被剔除后解析">
+        <Field label={t('pg.body', { ref: op.body.ref ? `（${op.body.ref}）` : '' })} hint={t('pg.bodyHint')}>
           <Textarea rows={8} value={bodyText} onChange={(e) => setBodyText(e.target.value)} className="h-44 w-full" spellCheck={false} />
         </Field>
       )}
 
-      <div className="flex items-center gap-2">
-        <Button variant="primary" onClick={send} loading={busy}><Send size={14} /> 发送</Button>
-        <span className="text-[10px] text-dim">部分端点需要登录会话（标「需登录会话」），API Key 调用会返回 403</span>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" onClick={send} loading={busy}><Send size={14} /> {t('pg.send')}</Button>
+        <span className="text-[10px] text-dim">{t('pg.sessionNote')}</span>
       </div>
 
       <ErrorBox>{err}</ErrorBox>

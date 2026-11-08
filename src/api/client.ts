@@ -1,4 +1,5 @@
 /** API 客户端：所有请求经本地代理 /p/* 转发到 api.instabox.sh */
+import { getLang } from '@/i18n';
 
 const KEY_STORAGE = 'instabox-ui.apiKey';
 
@@ -51,30 +52,50 @@ export class ApiError extends Error {
   }
 }
 
-/** 常见错误码 → 中文提示 */
-const CODE_ZH: Record<string, string> = {
-  missing_key: '缺少 API Key', malformed_key: 'API Key 格式错误', invalid_key: 'API Key 无效',
-  expired_key: 'API Key 已过期', revoked_key: 'API Key 已被撤销', session_expired: '会话过期',
-  missing_scope: 'API Key 权限范围（scope）不足，请在官方 dashboard 检查该 Key 的 scopes',
-  permission_denied: '没有权限执行此操作',
-  machine_not_running: '沙箱不在运行状态，请先启动',
-  machine_not_stopped: '沙箱未处于停止状态',
-  operation_conflict: '操作冲突：已有操作正在进行或状态不匹配',
-  delete_confirmation_required: '需要确认删除：请输入沙箱 ID 确认（本界面已自动带上确认头）',
-  not_found: '资源不存在',
-  rate_limited: '请求过于频繁，请稍后再试',
-  no_capacity: '暂时没有可用宿主机容量，请稍后重试',
-  quota_exceeded: '超出配额限制（免费版 1 台沙箱 / 5 个快照 / 200GiB）',
-  spend_limit_reached: '已达到本月消费上限',
-  too_large: '文件过大',
-  invite_required: '账号需要邀请码激活',
-  proxy_upstream: '代理无法连接上游 api.instabox.sh',
-};
+/** 常见错误码 → 双语提示（文案在 i18n/dict.ts 的 err.* 下） */
+const KNOWN_CODES = new Set([
+  'missing_key', 'malformed_key', 'invalid_key', 'expired_key', 'revoked_key', 'session_expired',
+  'missing_scope', 'permission_denied', 'machine_not_running', 'machine_not_stopped',
+  'operation_conflict', 'delete_confirmation_required', 'not_found', 'rate_limited', 'no_capacity',
+  'quota_exceeded', 'spend_limit_reached', 'too_large', 'invite_required', 'proxy_upstream',
+  'console_auth', 'bad_password', 'aborted',
+]);
 
 export function errText(e: unknown): string {
-  if (e instanceof ApiError) return CODE_ZH[e.code] ? `${CODE_ZH[e.code]}（${e.code}）` : e.message || e.code;
-  if (e instanceof Error) return e.message;
+  if (e instanceof ApiError) {
+    if (e.code === 'aborted') {
+      const m = getLang() === 'en' ? 'Request cancelled or timed out' : '请求已取消或超时';
+      return m;
+    }
+    if (KNOWN_CODES.has(e.code)) {
+      const { t } = i18nT;
+      const msg = t(`err.${e.code}`);
+      return `${msg} (${e.code})`;
+    }
+    return e.message || e.code;
+  }
+  if (e instanceof Error) {
+    if (e.name === 'AbortError' || /aborted|timeout/i.test(e.message)) {
+      return getLang() === 'en' ? 'Request cancelled or timed out' : '请求已取消或超时';
+    }
+    return e.message;
+  }
   return String(e);
+}
+
+// 由 i18n/index.tsx 注入的 t 函数引用（避免循环 import）
+let i18nT: { t: (k: string, p?: Record<string, string | number>) => string } = {
+  t: (k) => k,
+};
+export function bindI18nT(fn: { t: (k: string, p?: Record<string, string | number>) => string }) {
+  i18nT = fn;
+}
+
+/** 控制台登录事件（代理 CONSOLE_PASSWORD 保护时触发） */
+export const consoleAuthEvents = new EventTarget();
+export function onConsoleAuthNeeded(fn: () => void) {
+  consoleAuthEvents.addEventListener('console-auth', fn);
+  return () => consoleAuthEvents.removeEventListener('console-auth', fn);
 }
 
 export interface ApiOptions {
@@ -96,6 +117,10 @@ export async function api<T = unknown>(method: string, path: string, opts: ApiOp
   }
   if (!res.ok) {
     const err = (data as { error?: Record<string, string> })?.error;
+    // 控制台访问保护：401 console_auth → 广播给 App 弹登录框
+    if (res.status === 401 && err?.code === 'console_auth') {
+      consoleAuthEvents.dispatchEvent(new Event('console-auth'));
+    }
     throw new ApiError(res.status, err?.code || `http_${res.status}`, err?.message || res.statusText, {
       requestId: err?.requestId,
       retryable: err ? 'retryable' in err && String(err.retryable) === 'true' : undefined,

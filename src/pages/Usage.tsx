@@ -5,12 +5,14 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGri
 import { errText } from '@/api/client';
 import { miscApi } from '@/api/misc';
 import { useGlobal } from '@/state';
-import { Card, Stat, Button, ErrorBox, Spinner, Table, Td, Empty, Input, Select } from '@/components/ui';
+import { useT } from '@/i18n';
+import { Card, Stat, Button, ErrorBox, Spinner, Table, Td, Empty, Input } from '@/components/ui';
 import { fmtBytes, fmtDuration } from '@/utils/format';
 import type { Usage, OrgMachineUsage } from '@/api/types';
 
 export default function Usage() {
   const { orgId } = useGlobal();
+  const { t } = useT();
   const [usage, setUsage] = useState<Usage | null>(null);
   const [byMachine, setByMachine] = useState<OrgMachineUsage[] | null>(null);
   const [from, setFrom] = useState('');
@@ -23,8 +25,7 @@ export default function Usage() {
     setLoading(true); setErr(null);
     try {
       setUsage(await miscApi.usage(orgId));
-      const q = { org: orgId, from: from || undefined, to: to || undefined };
-      const r = await miscApi.orgUsageMachines(q.org, q.from, q.to);
+      const r = await miscApi.orgUsageMachines(orgId, from || undefined, to || undefined);
       setByMachine((r as { items?: OrgMachineUsage[] }).items || []);
     } catch (e) { setErr(errText(e)); }
     setLoading(false);
@@ -36,47 +37,47 @@ export default function Usage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold">用量与限额</h1>
-          <p className="text-xs text-dim">组织：{usage?.org?.name || orgId || '—'} · 计算于 {usage?.computedAt ? new Date(usage.computedAt).toLocaleString() : '—'}</p>
+          <h1 className="text-lg font-bold">{t('usage.title')}</h1>
+          <p className="text-xs text-dim">{t('usage.org', { o: usage?.org?.name || orgId || '—', t: usage?.computedAt ? new Date(usage.computedAt).toLocaleString() : '—' })}</p>
         </div>
-        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> 刷新</Button>
+        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> {t('common.refresh')}</Button>
       </div>
       <ErrorBox>{err}</ErrorBox>
 
       {loading && !usage ? <Spinner /> : usage ? (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Stat label="沙箱数" value={`${usage.machines}${lim?.maxMachines ? ` / ${lim.maxMachines}` : ' / 无限'}`} sub="任意状态计数" />
-            <Stat label="快照数" value={`${usage.snapshots}${lim?.maxSnapshots ? ` / ${lim.maxSnapshots}` : ' / 无限'}`} />
-            <Stat label="已分配磁盘" value={`${usage.allocatedDiskGiB ?? 0} GiB`} sub={`限额 ${lim?.maxStoredGiB ? `${lim.maxStoredGiB} GiB` : '无限'}`} />
-            <Stat label="存储占用" value={fmtBytes(usage.storedBytes)} sub={`逻辑 ${fmtBytes(usage.logicalBytes)}`} />
-            <Stat label="本月总费用" value={cost?.costUSD != null ? `$${cost.costUSD.toFixed(4)}` : '—'} accent />
-            <Stat label="默认规格" value={lim?.machineSpec ? `${lim.machineSpec.vcpus}C / ${lim.machineSpec.memMiB / 1024}G` : '—'} sub={(lim?.machineSpecs?.length ? `${lim.machineSpecs.length} 种可选` : '')} />
+            <Stat label={t('usage.machines')} value={`${usage.machines}${lim?.maxMachines ? ` / ${lim.maxMachines}` : ` / ${t('usage.unlimited')}`}`} sub={t('usage.anyState')} />
+            <Stat label={t('usage.snapshots')} value={`${usage.snapshots}${lim?.maxSnapshots ? ` / ${lim.maxSnapshots}` : ` / ${t('usage.unlimited')}`}`} />
+            <Stat label={t('usage.allocated')} value={`${usage.allocatedDiskGiB ?? 0} GiB`} sub={lim?.maxStoredGiB ? t('usage.quota', { n: lim.maxStoredGiB }) : t('usage.unlimited')} />
+            <Stat label={t('usage.stored')} value={fmtBytes(usage.storedBytes)} sub={t('dash.logical', { s: fmtBytes(usage.logicalBytes) })} />
+            <Stat label={t('usage.monthCost')} value={cost?.costUSD != null ? `$${cost.costUSD.toFixed(4)}` : '—'} accent />
+            <Stat label={t('usage.defaultSpec')} value={lim?.machineSpec ? `${lim.machineSpec.vcpus}C / ${lim.machineSpec.memMiB / 1024}G` : '—'} sub={lim?.machineSpecs?.length ? t('usage.nSpecs', { n: lim.machineSpecs.length }) : ''} />
           </div>
 
           {cost && (
-            <Card title="本月费用构成（USD）">
+            <Card title="USD">
               <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-                <FeeRow k="运行（vCPU+内存）" v={cost.runtimeUSD} />
-                <FeeRow k="存储" v={cost.storageUSD} />
-                <FeeRow k="流量" v={cost.egressUSD} />
-                <FeeRow k="抵扣（credits）" v={cost.creditsUSD} />
+                <FeeRow k={t('usage.feeRuntime')} v={cost.runtimeUSD} />
+                <FeeRow k={t('usage.feeStorage')} v={cost.storageUSD} />
+                <FeeRow k={t('usage.feeEgress')} v={cost.egressUSD} />
+                <FeeRow k={t('usage.feeCredits')} v={cost.creditsUSD} />
               </div>
             </Card>
           )}
 
-          <Card title="按机器用量（计费窗口，含已删除沙箱）"
+          <Card title={t('usage.byMachine')}
             right={
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="!py-1" />
-                <span className="text-dim">至</span>
+                <span className="text-dim">{t('usage.to')}</span>
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="!py-1" />
-                <Button className="!py-1" onClick={load}>查询</Button>
+                <Button className="!py-1" onClick={load}>{t('usage.query')}</Button>
               </div>
             }>
-            {!byMachine?.length ? <Empty>该窗口内无用量</Empty> : (
+            {!byMachine?.length ? <Empty>{t('usage.noUse')}</Empty> : (
               <>
                 <div className="h-56">
                   <ResponsiveContainer width="100%" height="100%">
@@ -85,18 +86,18 @@ export default function Usage() {
                       <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8493ab' }} />
                       <YAxis tick={{ fontSize: 10, fill: '#8493ab' }} width={40} />
                       <Tooltip contentStyle={{ background: '#111826', border: '1px solid #1f2a3d', fontSize: 12 }} />
-                      <Bar dataKey="hours" name="运行小时" fill="#38bdf8" radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="hours" name={t('usage.colRunHours')} fill="#38bdf8" radius={[3, 3, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
-                <Table head={['沙箱', '运行时长', 'vCPU 秒', '内存 GiB 秒', '磁盘 GiB 秒', '出站流量', '费用']}>
+                <Table head={[t('nav.machines'), t('ml.colTimers'), t('usage.colVcpu'), t('usage.colMem'), t('usage.colDisk'), t('usage.colEgress'), t('usage.colCost')]}>
                   {byMachine.map((x) => (
                     <tr key={x.machineId} className="hover:bg-white/[0.03]">
-                      <Td className="text-xs">{x.name || x.machineId}{x.deletedAt && <span className="ml-1 text-red-400">（已删除）</span>}</Td>
+                      <Td className="text-xs">{x.name || x.machineId}{x.deletedAt && <span className="ml-1 text-red-400">{t('usage.deleted')}</span>}</Td>
                       <Td className="text-xs">{fmtDuration(x.runningSeconds)}</Td>
-                      <Td className="mono text-xs">{(x.vcpuSeconds / 3600).toFixed(1)} h</Td>
-                      <Td className="mono text-xs">{(x.memGiBSeconds / 3600).toFixed(1)} h</Td>
-                      <Td className="mono text-xs">{(x.diskGiBSeconds / 3600).toFixed(1)} h</Td>
+                      <Td className="mono text-xs">{t('usage.h', { n: (x.vcpuSeconds / 3600).toFixed(1) })}</Td>
+                      <Td className="mono text-xs">{t('usage.h', { n: (x.memGiBSeconds / 3600).toFixed(1) })}</Td>
+                      <Td className="mono text-xs">{t('usage.h', { n: (x.diskGiBSeconds / 3600).toFixed(1) })}</Td>
                       <Td className="mono text-xs">{fmtBytes(x.egressBytes)}</Td>
                       <Td className="mono text-xs">{x.costUSD != null ? `$${x.costUSD.toFixed(4)}` : '—'}</Td>
                     </tr>
@@ -106,7 +107,7 @@ export default function Usage() {
             )}
           </Card>
 
-          <Card title="允许的规格">
+          <Card title={t('usage.specList')}>
             <div className="flex flex-wrap gap-2">
               {(lim?.machineSpecs || []).map((s) => (
                 <span key={`${s.vcpus}/${s.memMiB}`} className="mono rounded border border-line bg-panel2 px-2 py-1 text-xs">

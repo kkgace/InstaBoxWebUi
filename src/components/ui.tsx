@@ -1,7 +1,8 @@
 /** 基础 UI 组件（Tailwind，深色主题） */
 import React, { useEffect, useRef, useState } from 'react';
 import { X, Copy, Check, AlertTriangle, Loader2, ChevronRight } from 'lucide-react';
-import { STATE_META } from '@/utils/format';
+import { STATE_COLOR } from '@/utils/format';
+import { useT } from '@/i18n';
 
 // ---------- Button ----------
 type BtnVariant = 'primary' | 'ghost' | 'danger' | 'soft';
@@ -26,11 +27,13 @@ export function Button({ variant = 'soft', className = '', loading, children, ..
 
 // ---------- Badge ----------
 export function Badge({ value, className = '', children }: { value?: string; className?: string; children?: React.ReactNode }) {
-  const meta = value ? STATE_META[value] : undefined;
-  const color = meta?.color ?? 'bg-white/5 text-slate-300 border-line';
+  const { t } = useT();
+  const color = (value && STATE_COLOR[value]) || 'bg-white/5 text-slate-300 border-line';
+  const label = value ? t(`state.${value}`) : '';
+  const fallback = value && label === `state.${value}` ? value : label;
   return (
     <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-xs font-medium whitespace-nowrap ${className || color}`}>
-      {children ?? (meta?.zh ?? value)}
+      {children ?? fallback}
     </span>
   );
 }

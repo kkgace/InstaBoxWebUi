@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import { errText } from '@/api/client';
 import { machinesApi } from '@/api/machines';
+import { useT } from '@/i18n';
 import { Badge, Button, Spinner, ErrorBox, Tabs } from '@/components/ui';
 import { fmtBytes } from '@/utils/format';
 import type { Machine } from '@/api/types';
@@ -23,6 +24,7 @@ import SettingsTab from './detail/SettingsTab';
 
 export default function MachineDetail() {
   const { id = '' } = useParams();
+  const { t } = useT();
   const [m, setM] = useState<Machine | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [tab, setTab] = useState('overview');
@@ -48,7 +50,7 @@ export default function MachineDetail() {
     return (
       <div className="space-y-3">
         <ErrorBox>{err}</ErrorBox>
-        <Link to="/machines" className="text-sm text-sky-400 hover:underline">← 返回沙箱列表</Link>
+        <Link to="/machines" className="text-sm text-sky-400 hover:underline">← {t('nav.machines')}</Link>
       </div>
     );
   }
@@ -56,17 +58,16 @@ export default function MachineDetail() {
 
   return (
     <div className="space-y-4">
-      {/* 头部 */}
       <div className="flex flex-wrap items-center gap-3">
         <Link to="/machines" className="rounded p-1.5 text-dim hover:bg-white/5 hover:text-slate-200"><ArrowLeft size={18} /></Link>
         <div className="min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-lg font-bold">{m.name}</h1>
             <Badge value={m.state} />
-            {m.operationId && <Badge className="border-sky-500/30 bg-sky-500/10 text-sky-300">操作进行中</Badge>}
+            {m.operationId && <Badge className="border-sky-500/30 bg-sky-500/10 text-sky-300">{t('ml.opInProgress')}</Badge>}
             {m.free && <Badge className="border-line">free</Badge>}
           </div>
-          <div className="mono mt-0.5 text-xs text-dim">{m.id} · {m.template.id}@{m.template.version} · {m.spec.vcpus} vCPU / {(m.spec.memMiB / 1024).toFixed(0)} GiB / 数据盘 {fmtBytes((m as unknown as { storage?: { sizeBytes?: number } }).storage?.sizeBytes)}</div>
+          <div className="mono mt-0.5 text-xs text-dim">{m.id} · {m.template.id}@{m.template.version} · {m.spec.vcpus} vCPU / {(m.spec.memMiB / 1024).toFixed(0)} GiB / {fmtBytes((m as unknown as { storage?: { sizeBytes?: number } }).storage?.sizeBytes)}</div>
         </div>
         <div className="ml-auto"><Button variant="ghost" onClick={load}><RefreshCw size={14} /></Button></div>
       </div>
@@ -77,19 +78,19 @@ export default function MachineDetail() {
         active={tab}
         onChange={setTab}
         tabs={[
-          { key: 'overview', label: '概览' },
-          { key: 'terminal', label: '终端' },
-          { key: 'files', label: '文件' },
-          { key: 'exec', label: '命令' },
-          { key: 'procs', label: '进程' },
-          { key: 'desktop', label: '桌面' },
-          { key: 'ports', label: '端口' },
-          { key: 'snapshot', label: '快照/克隆' },
-          { key: 'logs', label: '日志' },
-          { key: 'metrics', label: '监控' },
-          { key: 'ssh', label: 'SSH' },
-          { key: 'secrets', label: 'Secrets' },
-          { key: 'settings', label: '设置' },
+          { key: 'overview', label: t('tab.overview') },
+          { key: 'terminal', label: t('tab.terminal') },
+          { key: 'files', label: t('tab.files') },
+          { key: 'exec', label: t('tab.exec') },
+          { key: 'procs', label: t('tab.procs') },
+          { key: 'desktop', label: t('tab.desktop') },
+          { key: 'ports', label: t('tab.ports') },
+          { key: 'snapshot', label: t('tab.snapshot') },
+          { key: 'logs', label: t('tab.logs') },
+          { key: 'metrics', label: t('tab.metrics') },
+          { key: 'ssh', label: t('tab.ssh') },
+          { key: 'secrets', label: t('tab.secrets') },
+          { key: 'settings', label: t('tab.settings') },
         ]}
       />
 

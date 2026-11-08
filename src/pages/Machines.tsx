@@ -1,12 +1,17 @@
-/** 沙箱列表 + 创建沙箱 */
+/** 沙箱列表 + 创建沙箱（支持保存/加载创建预设 Profiles） */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, RefreshCw, Play, Square, Pause, RotateCcw, Trash2, Zap, Terminal, Clock, Hourglass } from 'lucide-react';
-import { api, errText, waitForOperation, wsProxyUrl } from '@/api/client';
+import {
+  Plus, RefreshCw, Play, Square, Pause, RotateCcw, Trash2, Zap, Clock, Hourglass, Bookmark, BookmarkPlus,
+} from 'lucide-react';
+import { errText, waitForOperation } from '@/api/client';
 import { machinesApi, type CreateMachineBody } from '@/api/machines';
 import { miscApi } from '@/api/misc';
 import { useGlobal } from '@/state';
-import { Button, Badge, Card, Table, Td, Modal, Field, Input, Textarea, Select, Spinner, ErrorBox, OkBox, Confirm } from '@/components/ui';
+import { useT } from '@/i18n';
+import {
+  Button, Badge, Card, Table, Td, Modal, Field, Input, Textarea, Select, Spinner, ErrorBox, OkBox, Confirm, CopyButton,
+} from '@/components/ui';
 import { fmtBytes, fmtDuration, fmtTime, fmtDeadline } from '@/utils/format';
 import type { Machine, MachineSpec, Template } from '@/api/types';
 
@@ -21,8 +26,22 @@ const parseKV = (s: string): Record<string, string> => {
   return out;
 };
 
+// ---------- 创建预设（localStorage） ----------
+interface Profile {
+  name: string;
+  form: {
+    name: string; templateId: string; specKey: string; desiredState: string;
+    env: string; metadata: string; autoSuspend: string; maxRun: string; deleteAfter: string;
+  };
+}
+const PROFILE_KEY = 'instabox-ui.profiles';
+export function getProfiles(): Profile[] {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY) || '[]'); } catch { return []; }
+}
+function saveProfiles(list: Profile[]) { localStorage.setItem(PROFILE_KEY, JSON.stringify(list)); }
+
 export default function Machines() {
-  const { me, orgId } = useGlobal();
+  const { t } = useT();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -38,7 +57,6 @@ export default function Machines() {
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  /** 生命周期动作 */
   const act = async (m: Machine, action: 'start' | 'stop' | 'suspend' | 'resume' | 'wake') => {
     setBusy(m.id + action); setErr(null);
     try {
@@ -67,23 +85,21 @@ export default function Machines() {
     setBusy(null);
   };
 
-  const specs: MachineSpec[] = me?.allowedSpecs || [];
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">沙箱</h1>
+        <h1 className="text-lg font-bold">{t('ml.title')}</h1>
         <div className="flex gap-2">
-          <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> 刷新</Button>
-          <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> 创建沙箱</Button>
+          <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> {t('common.refresh')}</Button>
+          <Button variant="primary" onClick={() => setCreateOpen(true)}><Plus size={14} /> {t('common.create')}</Button>
         </div>
       </div>
       <ErrorBox>{err}</ErrorBox>
 
       {loading && machines.length === 0 ? <Spinner /> : machines.length === 0 ? (
-        <Card><div className="py-8 text-center text-sm text-dim">暂无沙箱。免费版限额 1 台（任意状态）。点击右上角「创建沙箱」开始。</div></Card>
+        <Card><div className="py-8 text-center text-sm text-dim">{t('ml.empty1')}</div></Card>
       ) : (
-        <Table head={['名称 / ID', '状态', '规格', '数据盘', '模板', '自动暂停', '运行/删除倒计时', '操作']}>
+        <Table head={[t('ml.colName'), t('common.status'), t('ml.colSpec'), t('ml.colDisk'), t('ml.colTemplate'), t('ml.colAutoPause'), t('ml.colTimers'), t('common.actions')]}>
           {machines.map((m) => {
             const del2 = fmtDeadline(m.deleteAt);
             const arch = fmtDeadline(m.archiveAt);
@@ -105,21 +121,21 @@ export default function Machines() {
                 <Td className="mono text-xs">{m.spec.vcpus}C/{(m.spec.memMiB / 1024).toFixed(0)}G</Td>
                 <Td className="mono text-xs">{fmtBytes((m as unknown as { storage?: { sizeBytes?: number } }).storage?.sizeBytes)}</Td>
                 <Td className="mono text-xs text-dim">{m.template.id}<br />{m.template.version}</Td>
-                <Td className="text-xs text-dim">{m.autoSuspendAfterSeconds ? fmtDuration(m.autoSuspendAfterSeconds) : '关闭'}</Td>
+                <Td className="text-xs text-dim">{m.autoSuspendAfterSeconds ? fmtDuration(m.autoSuspendAfterSeconds) : t('ml.off')}</Td>
                 <Td className="text-xs text-dim">
                   {runSec != null && m.state === 'running' && <div className="inline-flex items-center gap-1"><Clock size={11} /> {fmtDuration(runSec)}</div>}
                   {del2 && <div className={`inline-flex items-center gap-1 ${del2.urgent ? 'text-red-400' : ''}`}><Trash2 size={11} /> {del2.text}</div>}
-                  {arch && !del2 && <div className="inline-flex items-center gap-1"><Hourglass size={11} /> 归档 {arch.text}</div>}
+                  {arch && !del2 && <div className="inline-flex items-center gap-1"><Hourglass size={11} /> {t('ml.archIn', { t: arch.text })}</div>}
                   {!runSec && !del2 && !arch && '—'}
                 </Td>
                 <Td>
                   <div className="flex flex-wrap gap-1">
-                    {canStart && <Button className="!px-2 !py-1" onClick={() => act(m, 'start')} loading={busy === m.id + 'start'} title="启动"><Play size={13} /></Button>}
-                    {canStop && <Button className="!px-2 !py-1" onClick={() => act(m, 'stop')} loading={busy === m.id + 'stop'} title="停止"><Square size={13} /></Button>}
-                    {canSuspend && <Button className="!px-2 !py-1" onClick={() => act(m, 'suspend')} loading={busy === m.id + 'suspend'} title="暂停（保留进程内存）"><Pause size={13} /></Button>}
-                    {canResume && <Button className="!px-2 !py-1" onClick={() => act(m, 'resume')} loading={busy === m.id + 'resume'} title="恢复"><RotateCcw size={13} /></Button>}
-                    {m.state === 'running' && (m as unknown as { autoSuspendedAt?: string }).autoSuspendedAt && <Button className="!px-2 !py-1" onClick={() => act(m, 'wake')} title="唤醒（空闲暂停后）"><Zap size={13} /></Button>}
-                    <Button className="!px-2 !py-1" variant="danger" onClick={() => setDelTarget(m)} title="删除"><Trash2 size={13} /></Button>
+                    {canStart && <Button className="!px-2 !py-1" onClick={() => act(m, 'start')} loading={busy === m.id + 'start'} title={t('ov.start')}><Play size={13} /></Button>}
+                    {canStop && <Button className="!px-2 !py-1" onClick={() => act(m, 'stop')} loading={busy === m.id + 'stop'} title={t('ov.stop')}><Square size={13} /></Button>}
+                    {canSuspend && <Button className="!px-2 !py-1" onClick={() => act(m, 'suspend')} loading={busy === m.id + 'suspend'} title={t('ov.suspend')}><Pause size={13} /></Button>}
+                    {canResume && <Button className="!px-2 !py-1" onClick={() => act(m, 'resume')} loading={busy === m.id + 'resume'} title={t('ov.resume')}><RotateCcw size={13} /></Button>}
+                    {m.state === 'running' && m.autoSuspendedAt && <Button className="!px-2 !py-1" onClick={() => act(m, 'wake')} title={t('ov.wake')}><Zap size={13} /></Button>}
+                    <Button className="!px-2 !py-1" variant="danger" onClick={() => setDelTarget(m)} title={t('common.delete')}><Trash2 size={13} /></Button>
                   </div>
                 </Td>
               </tr>
@@ -128,14 +144,14 @@ export default function Machines() {
         </Table>
       )}
 
-      <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={(id) => { setCreateOpen(false); load(); }} specs={specs} />
+      <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); load(); }} />
       <Confirm
         open={!!delTarget}
         onClose={() => setDelTarget(null)}
         onConfirm={() => delTarget && del(delTarget)}
-        title={`删除沙箱 ${delTarget?.name || ''}`}
-        message={<>将删除沙箱、系统文件与全部存储数据（已保存的快照保留）。此操作不可撤销。</>}
-        confirmText="确认删除"
+        title={`${t('common.delete')} ${delTarget?.name || ''}`}
+        message={t('ov.delHint')}
+        confirmText={t('common.confirmDelete')}
         danger
         requireText={delTarget?.name}
       />
@@ -144,9 +160,11 @@ export default function Machines() {
 }
 
 // ---------------------------------------------------------------- 创建
-function CreateDialog({ open, onClose, onCreated, specs }: {
-  open: boolean; onClose: () => void; onCreated: (machineId?: string) => void; specs: MachineSpec[];
+function CreateDialog({ open, onClose, onCreated }: {
+  open: boolean; onClose: () => void; onCreated: () => void;
 }) {
+  const { t } = useT();
+  const { me } = useGlobal();
   const [templates, setTemplates] = useState<Template[]>([]);
   const [name, setName] = useState('');
   const [templateId, setTemplateId] = useState('');
@@ -161,23 +179,51 @@ function CreateDialog({ open, onClose, onCreated, specs }: {
   const [phase, setPhase] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [doneId, setDoneId] = useState<string | null>(null);
+  const [profiles, setProfiles] = useState<Profile[]>(getProfiles);
+  const [profileName, setProfileName] = useState('');
+  const [showSaveProfile, setShowSaveProfile] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setErr(null); setPhase(null); setBusy(false); setDoneId(null);
+    setProfiles(getProfiles());
     miscApi.templates().then((r) => {
-      const creatable = (r.templates || []).filter((t) => t.creatable !== false && !t.hidden);
+      const creatable = (r.templates || []).filter((tpl) => tpl.creatable !== false && !tpl.hidden);
       setTemplates(creatable);
-      const def = creatable.find((t) => t.default) || creatable[0];
+      const def = creatable.find((tpl) => tpl.default) || creatable[0];
       if (def) setTemplateId(`${def.id}@${def.version}`);
     }).catch((e) => setErr(errText(e)));
   }, [open]);
 
-  const creatable = templates.filter((t) => !t.staged);
+  const creatable = templates.filter((tpl) => !tpl.staged);
+  const specs: MachineSpec[] = me?.allowedSpecs || [];
   const selSpec = specs.find((s) => `${s.vcpus}/${s.memMiB}` === specKey);
 
+  const applyProfile = (p: Profile) => {
+    setName(p.form.name); setTemplateId(p.form.templateId); setSpecKey(p.form.specKey);
+    setDesiredState(p.form.desiredState as 'running' | 'stopped');
+    setEnv(p.form.env); setMetadata(p.form.metadata);
+    setAutoSuspend(p.form.autoSuspend); setMaxRun(p.form.maxRun); setDeleteAfter(p.form.deleteAfter);
+  };
+
+  const saveProfile = () => {
+    const n = profileName.trim() || `${t('ml.title')}-${getProfiles().length + 1}`;
+    const list = getProfiles().filter((p) => p.name !== n);
+    list.unshift({
+      name: n,
+      form: { name, templateId, specKey, desiredState, env, metadata, autoSuspend, maxRun, deleteAfter },
+    });
+    saveProfiles(list);
+    setProfiles(list);
+    setProfileName(''); setShowSaveProfile(false);
+  };
+  const delProfile = (n: string) => {
+    saveProfiles(getProfiles().filter((p) => p.name !== n));
+    setProfiles(getProfiles());
+  };
+
   const submit = async () => {
-    setBusy(true); setErr(null); setPhase('提交创建请求…'); setDoneId(null);
+    setBusy(true); setErr(null); setPhase(t('mc.submitting')); setDoneId(null);
     const body: CreateMachineBody = { desiredState };
     if (name.trim()) body.name = name.trim();
     if (templateId) {
@@ -196,70 +242,98 @@ function CreateDialog({ open, onClose, onCreated, specs }: {
     try {
       const r = await machinesApi.create(body);
       if (r.operationId) {
-        setPhase('沙箱创建中（排队 → 调度 → 启动）…');
-        await waitForOperation(r.operationId, (op) => setPhase(`${op.type}：${op.state}${op.phase ? ` · ${op.phase}` : ''}`));
+        await waitForOperation(r.operationId, (op) => setPhase(`${op.state}${op.phase ? ` · ${op.phase}` : ''}`));
       }
       setDoneId(r.machineId || '');
-      setTimeout(() => onCreated(r.machineId), 800);
+      setTimeout(() => onCreated(), 800);
     } catch (e) { setErr(errText(e)); setBusy(false); setPhase(null); }
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="创建沙箱" width="max-w-2xl">
+    <Modal open={open} onClose={onClose} title={t('mc.title')} width="max-w-2xl">
       <div className="space-y-3">
+        {/* 预设 */}
+        <div className="rounded-md border border-line bg-panel2 p-2.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Bookmark size={13} className="text-dim" />
+            {profiles.length === 0 ? <span className="text-xs text-dim">—</span> : profiles.map((p) => (
+              <span key={p.name} className="inline-flex items-center gap-1 rounded border border-line bg-bg px-2 py-1 text-xs">
+                <button className="text-sky-400 hover:underline" onClick={() => applyProfile(p)}>{p.name}</button>
+                <button className="text-dim hover:text-red-400" onClick={() => delProfile(p.name)}><Trash2 size={11} /></button>
+              </span>
+            ))}
+            <span className="flex-1" />
+            <Button className="!px-2 !py-1 !text-xs" onClick={() => setShowSaveProfile((v) => !v)}><BookmarkPlus size={12} /> {t('common.save')}</Button>
+          </div>
+          {showSaveProfile && (
+            <div className="mt-2 flex items-center gap-2">
+              <Input value={profileName} onChange={(e) => setProfileName(e.target.value)} placeholder={t('common.name')} className="w-44" />
+              <Button variant="primary" className="!py-1" onClick={saveProfile}>{t('common.save')}</Button>
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
-          <Field label="名称（可选）" hint="1-63 位小写字母/数字/连字符">
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="默认自动生成" className="w-full" />
+          <Field label={t('mc.name')} hint={t('mc.nameHint')}>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('mc.namePh')} className="w-full" />
           </Field>
-          <Field label="模板">
+          <Field label={t('mc.template')}>
             <Select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="w-full">
-              {creatable.map((t) => (
-                <option key={`${t.id}@${t.version}`} value={`${t.id}@${t.version}`}>
-                  {t.id}@{t.version}{t.default ? '（默认）' : ''}{t.description ? ` — ${t.description.slice(0, 30)}` : ''}
+              {creatable.map((tpl) => (
+                <option key={`${tpl.id}@${tpl.version}`} value={`${tpl.id}@${tpl.version}`}>
+                  {tpl.id}@{tpl.version}{tpl.default ? t('mc.defaultTpl') : ''}
                 </option>
               ))}
             </Select>
           </Field>
-          <Field label="规格">
+          <Field label={t('mc.size')}>
             <Select value={specKey} onChange={(e) => setSpecKey(e.target.value)} className="w-full">
-              <option value="">默认（{specs[0] ? `${specs[0].vcpus} vCPU / ${specs[0].memMiB / 1024} GiB` : '4C/8G'}）</option>
+              <option value="">{t('mc.sizeDefault', { s: specs[0] ? `${specs[0].vcpus} vCPU / ${specs[0].memMiB / 1024} GiB` : '4C/8G' })}</option>
               {specs.map((s) => (
                 <option key={`${s.vcpus}/${s.memMiB}`} value={`${s.vcpus}/${s.memMiB}`}>{s.vcpus} vCPU / {s.memMiB / 1024} GiB</option>
               ))}
             </Select>
           </Field>
-          <Field label="创建后状态">
+          <Field label={t('mc.postState')}>
             <Select value={desiredState} onChange={(e) => setDesiredState(e.target.value as 'running' | 'stopped')} className="w-full">
-              <option value="running">立即启动</option>
-              <option value="stopped">保持停止</option>
+              <option value="running">{t('mc.postRunning')}</option>
+              <option value="stopped">{t('mc.postStopped')}</option>
             </Select>
           </Field>
-          <Field label="空闲自动暂停（秒）" hint="留空用默认；0 = 关闭">
+          <Field label={t('mc.autoPause')} hint={t('mc.autoPauseHint')}>
             <Select value={autoSuspend} onChange={(e) => setAutoSuspend(e.target.value)} className="w-full">
-              <option value="">默认</option>
-              {[300, 600, 900, 1800].map((s) => <option key={s} value={s}>{s / 60} 分钟</option>)}
-              <option value="0">关闭</option>
+              <option value="">—</option>
+              {[300, 600, 900, 1800].map((s) => <option key={s} value={s}>{t('mc.minutes', { n: s / 60 })}</option>)}
+              <option value="0">0</option>
             </Select>
           </Field>
-          <Field label="最长连续运行（分钟）" hint="超时自动暂停并进入冷却">
-            <Input type="number" value={maxRun} onChange={(e) => setMaxRun(e.target.value)} placeholder="默认" className="w-full" />
+          <Field label={t('mc.maxRun')} hint={t('mc.maxRunHint')}>
+            <Input type="number" value={maxRun} onChange={(e) => setMaxRun(e.target.value)} placeholder={t('mc.maxRunPh')} className="w-full" />
           </Field>
-          <Field label="定时删除（秒）" hint="60-86400；到时自动删除整个沙箱">
-            <Input type="number" value={deleteAfter} onChange={(e) => setDeleteAfter(e.target.value)} placeholder="不设置" className="w-full" />
+          <Field label={t('mc.deleteAfter')} hint={t('mc.deleteAfterHint')}>
+            <Input type="number" value={deleteAfter} onChange={(e) => setDeleteAfter(e.target.value)} placeholder={t('mc.noSet')} className="w-full" />
           </Field>
-          <Field label="环境变量（可选）" hint="每行 KEY=value，注入所有登录 shell">
+          <Field label={t('mc.env')} hint={t('mc.envHint')}>
             <Textarea rows={2} value={env} onChange={(e) => setEnv(e.target.value)} placeholder={'FOO=bar\nBAZ=qux'} className="w-full" />
           </Field>
-          <Field label="元数据标签（可选）" hint="每行 key=value，最多 32 个">
+          <Field label={t('mc.metadata')} hint={t('mc.metadataHint')}>
             <Textarea rows={2} value={metadata} onChange={(e) => setMetadata(e.target.value)} placeholder={'team=infra'} className="w-full" />
           </Field>
         </div>
         <ErrorBox>{err}</ErrorBox>
         {phase && <div className="flex items-center gap-2 text-sm text-sky-400"><Spinner className="!size-4" /> {phase}</div>}
-        {doneId && <OkBox>创建成功！沙箱 ID：{doneId}</OkBox>}
+        {doneId && (
+          <OkBox>
+            <span className="inline-flex items-center gap-2">
+              {t('mc.created', { id: doneId })}
+              <span className="mono">{doneId}</span>
+              <CopyButton text={doneId} />
+            </span>
+          </OkBox>
+        )}
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={busy && !doneId}>关闭</Button>
-          <Button variant="primary" onClick={submit} loading={busy}>创建</Button>
+          <Button variant="ghost" onClick={onClose} disabled={busy && !doneId}>{t('common.close')}</Button>
+          <Button variant="primary" onClick={submit} loading={busy}>{t('common.create')}</Button>
         </div>
       </div>
     </Modal>

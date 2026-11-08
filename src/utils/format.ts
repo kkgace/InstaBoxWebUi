@@ -46,29 +46,24 @@ export function fmtDeadline(iso?: string | null): { text: string; urgent: boolea
   return { text: `${fmtDuration(diff)}后`, urgent: diff < 3600 };
 }
 
-/** 沙箱状态 → 颜色 + 中文 */
-export const STATE_META: Record<string, { color: string; zh: string }> = {
-  running: { color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', zh: '运行中' },
-  starting: { color: 'bg-sky-500/15 text-sky-400 border-sky-500/30', zh: '启动中' },
-  creating: { color: 'bg-sky-500/15 text-sky-400 border-sky-500/30', zh: '创建中' },
-  resuming: { color: 'bg-sky-500/15 text-sky-400 border-sky-500/30', zh: '恢复中' },
-  stopping: { color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', zh: '停止中' },
-  suspending: { color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', zh: '暂停中' },
-  stopped: { color: 'bg-slate-500/15 text-slate-300 border-slate-500/30', zh: '已停止' },
-  suspended: { color: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30', zh: '已暂停' },
-  deleting: { color: 'bg-red-500/15 text-red-400 border-red-500/30', zh: '删除中' },
-  deleted: { color: 'bg-red-500/15 text-red-400 border-red-500/30', zh: '已删除' },
-  error: { color: 'bg-red-500/15 text-red-400 border-red-500/30', zh: '错误' },
-  pending: { color: 'bg-amber-500/15 text-amber-400 border-amber-500/30', zh: '等待中' },
-  ready: { color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', zh: '就绪' },
-  failed: { color: 'bg-red-500/15 text-red-400 border-red-500/30', zh: '失败' },
-  queued: { color: 'bg-slate-500/15 text-slate-300 border-slate-500/30', zh: '排队中' },
-  succeeded: { color: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', zh: '成功' },
-};
-
-export const OP_TYPE_ZH: Record<string, string> = {
-  create: '创建', start: '启动', stop: '停止', suspend: '暂停', resume: '恢复',
-  delete: '删除', restore: '还原', resize: '调整规格', move: '迁移',
+/** 沙箱状态 → 颜色（文案在 i18n 的 state.* 下，由 Badge 翻译） */
+export const STATE_COLOR: Record<string, string> = {
+  running: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  starting: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+  creating: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+  resuming: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+  stopping: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  suspending: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  stopped: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  suspended: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+  deleting: 'bg-red-500/15 text-red-400 border-red-500/30',
+  deleted: 'bg-red-500/15 text-red-400 border-red-500/30',
+  error: 'bg-red-500/15 text-red-400 border-red-500/30',
+  pending: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+  ready: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+  failed: 'bg-red-500/15 text-red-400 border-red-500/30',
+  queued: 'bg-slate-500/15 text-slate-300 border-slate-500/30',
+  succeeded: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
 };
 
 export function truncate(s: string, n = 60): string {

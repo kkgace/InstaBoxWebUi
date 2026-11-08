@@ -1,15 +1,17 @@
 /** 快照列表：从快照创建沙箱、删除、浏览文件 */
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RefreshCw, Trash2, Camera, FolderOpen, Rocket } from 'lucide-react';
+import { RefreshCw, Trash2, FolderOpen, Rocket } from 'lucide-react';
 import { errText, waitForOperation } from '@/api/client';
 import { machinesApi } from '@/api/machines';
 import { miscApi } from '@/api/misc';
+import { useT } from '@/i18n';
 import { Card, Button, Badge, ErrorBox, OkBox, Table, Td, Empty, Spinner, Confirm, Modal, Crumbs, JsonView } from '@/components/ui';
 import { fmtBytes, fmtTime } from '@/utils/format';
-import type { Snapshot, Files, FileEntry } from '@/api/types';
+import type { Snapshot, Files } from '@/api/types';
 
 export default function Snapshots() {
+  const { t } = useT();
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -28,17 +30,14 @@ export default function Snapshots() {
 
   const doDel = async () => {
     if (!del) return;
-    try { await miscApi.deleteSnapshot(del.id); setOk(`快照 ${del.name} 已删除（引用它的沙箱不受影响）`); load(); }
+    try { await miscApi.deleteSnapshot(del.id); setOk(t('snl.delOk', { n: del.name })); load(); }
     catch (e) { setErr(errText(e)); }
   };
 
   const createFrom = async (s: Snapshot) => {
     try {
-      const r = await machinesApi.create({
-        snapshotId: s.id,
-        name: `from-${s.name}`.slice(0, 63),
-      });
-      if (r.operationId) await import('@/api/client').then(({ waitForOperation }) => waitForOperation(r.operationId!));
+      const r = await machinesApi.create({ snapshotId: s.id, name: `from-${s.name}`.slice(0, 63) });
+      if (r.operationId) await waitForOperation(r.operationId);
       navigate(`/machines/${r.machineId || ''}`);
     } catch (e) { setErr(errText(e)); }
   };
@@ -46,15 +45,15 @@ export default function Snapshots() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold">快照</h1>
-        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> 刷新</Button>
+        <h1 className="text-lg font-bold">{t('snl.title')}</h1>
+        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> {t('common.refresh')}</Button>
       </div>
       <ErrorBox>{err}</ErrorBox>
       {ok && <OkBox>{ok}</OkBox>}
       {loading && !snaps.length ? <Spinner /> : snaps.length === 0 ? (
-        <Card><Empty>暂无快照 — 在沙箱详情页「快照/克隆」Tab 创建</Empty></Card>
+        <Card><Empty>{t('snl.empty')}</Empty></Card>
       ) : (
-        <Table head={['名称', '状态', '来源沙箱', '系统盘', '数据盘', '可见性', '创建时间', '']}>
+        <Table head={[t('common.name'), t('common.status'), t('snl.colSource'), t('snl.colRoot'), t('snl.colData'), t('snl.colVis'), t('common.createdAt'), t('common.actions')]}>
           {snaps.map((s) => (
             <tr key={s.id} className="hover:bg-white/[0.03]">
               <Td>
@@ -70,9 +69,9 @@ export default function Snapshots() {
               <Td className="text-xs text-dim">{fmtTime(s.createdAt)}</Td>
               <Td>
                 <div className="flex gap-1">
-                  <Button className="!px-2 !py-1" title="浏览文件" onClick={() => setBrowse(s)}><FolderOpen size={13} /></Button>
-                  <Button className="!px-2 !py-1" title="从此快照创建沙箱" onClick={() => createFrom(s)}><Rocket size={13} /></Button>
-                  <Button className="!px-2 !py-1" variant="danger" title="删除" onClick={() => setDel(s)}><Trash2 size={13} /></Button>
+                  <Button className="!px-2 !py-1" title={t('snl.browse')} onClick={() => setBrowse(s)}><FolderOpen size={13} /></Button>
+                  <Button className="!px-2 !py-1" title={t('snl.createFrom')} onClick={() => createFrom(s)}><Rocket size={13} /></Button>
+                  <Button className="!px-2 !py-1" variant="danger" title={t('common.delete')} onClick={() => setDel(s)}><Trash2 size={13} /></Button>
                 </div>
               </Td>
             </tr>
@@ -81,13 +80,14 @@ export default function Snapshots() {
       )}
 
       <Confirm open={!!del} onClose={() => setDel(null)} onConfirm={doDel}
-        title={`删除快照 ${del?.name || ''}`} message="从此快照创建的沙箱不受影响，其数据在不再被引用后清理。" confirmText="删除" danger />
+        title={t('snl.delTitle', { n: del?.name || '' })} message={t('snl.delMsg')} confirmText={t('common.delete')} danger />
       {browse && <BrowseModal snap={browse} onClose={() => setBrowse(null)} />}
     </div>
   );
 }
 
 function BrowseModal({ snap, onClose }: { snap: Snapshot; onClose: () => void }) {
+  const { t } = useT();
   const [path, setPath] = useState('/');
   const [data, setData] = useState<Files | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -103,13 +103,13 @@ function BrowseModal({ snap, onClose }: { snap: Snapshot; onClose: () => void })
 
   const parts = path.split('/').filter(Boolean);
   return (
-    <Modal open onClose={onClose} title={`浏览快照文件 — ${snap.name}`} width="max-w-3xl">
+    <Modal open onClose={onClose} title={t('snl.browseTitle', { n: snap.name })} width="max-w-3xl">
       <Crumbs parts={parts} onNav={(d) => setPath('/' + parts.slice(0, d).join('/') || '/')} />
       <ErrorBox>{err}</ErrorBox>
       {loading ? <Spinner /> : data?.type === 'dir' ? (
         <table className="mt-2 w-full text-sm">
           <tbody className="divide-y divide-line/50">
-            {(data.entries || []).map((e: FileEntry) => (
+            {(data.entries || []).map((e) => (
               <tr key={e.name} className="hover:bg-white/[0.03]">
                 <td className="py-1.5">
                   {e.type === 'dir'
@@ -120,11 +120,11 @@ function BrowseModal({ snap, onClose }: { snap: Snapshot; onClose: () => void })
                 <td className="w-40 py-1.5 text-xs text-dim">{fmtTime(e.modTime)}</td>
               </tr>
             ))}
-            {!data.entries?.length && <tr><td className="py-3 text-center text-dim">空目录</td></tr>}
+            {!data.entries?.length && <tr><td className="py-3 text-center text-dim">{t('snl.emptyDir')}</td></tr>}
           </tbody>
         </table>
       ) : data?.type === 'file' ? (
-        data.binary ? <div className="mt-2 text-sm text-dim">二进制文件（{fmtBytes(data.size)}）</div> : <JsonView data={data.content || ''} />
+        data.binary ? <div className="mt-2 text-sm text-dim">{t('snl.binary', { s: fmtBytes(data.size) })}</div> : <JsonView data={data.content || ''} />
       ) : null}
     </Modal>
   );

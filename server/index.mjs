@@ -17,6 +17,7 @@
  */
 import http from 'node:http';
 import https from 'node:https';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +28,46 @@ const DIST = path.join(__dirname, '..', 'dist');
 const PORT = Number(process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 8787));
 const UPSTREAM = (process.env.INSTABOX_API || 'https://api.instabox.sh').replace(/\/+$/, '');
 const SERVER_KEY = process.env.INSTABOX_API_KEY || '';
+// 访问保护：设置 CONSOLE_PASSWORD 后，/p/* 与 /ws 需要登录（静态资源放行以便加载登录页）。
+// 浏览器流程：401 console_auth → 前端弹密码框 → POST /auth → HttpOnly cookie 会话。
+const CONSOLE_PASSWORD = process.env.CONSOLE_PASSWORD || '';
+const AUTH_COOKIE = 'console_auth';
+const AUTH_TOKEN = CONSOLE_PASSWORD ? crypto.createHash('sha256').update(`instabox-ui:${CONSOLE_PASSWORD}`).digest('hex') : '';
+
+function authOk(req) {
+  if (!CONSOLE_PASSWORD) return true;
+  const cookies = req.headers.cookie || '';
+  const m = cookies.split(/;\s*/).find((c) => c.startsWith(AUTH_COOKIE + '='));
+  return !!m && m.slice(AUTH_COOKIE.length + 1) === AUTH_TOKEN;
+}
+
+function handleAuth(req, res) {
+  // POST /auth {password}：校验并种 cookie；GET /auth：检查当前会话是否有效
+  let body = '';
+  req.on('data', (c) => { body += c; if (body.length > 4096) req.destroy(); });
+  req.on('end', () => {
+    if (req.method === 'GET') {
+      res.writeHead(authOk(req) ? 200 : 401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ ok: authOk(req) }));
+      return;
+    }
+    let pass = '';
+    try { pass = String(JSON.parse(body || '{}').password || ''); } catch { /* ignore */ }
+    const good = CONSOLE_PASSWORD && pass === CONSOLE_PASSWORD;
+    if (good) {
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'set-cookie': `${AUTH_COOKIE}=${AUTH_TOKEN}; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000`,
+      });
+      res.end(JSON.stringify({ ok: true }));
+      log('auth: 登录成功');
+    } else {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'bad_password', message: 'wrong password' } }));
+      log('auth: 密码错误');
+    }
+  });
+}
 const WS_HOST_SUFFIXES = ['.instabox.sh', '.instabox.tech', ...(process.env.ALLOW_WS_HOSTS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)];
 
 const upstreamUrl = new URL(UPSTREAM);
@@ -48,6 +89,11 @@ function log(...args) { console.log(new Date().toISOString(), ...args); }
 
 // ---------------------------------------------------------------- REST 代理
 function proxyRest(req, res) {
+  if (!authOk(req)) {
+    res.writeHead(401, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+    return;
+  }
   const start = Date.now();
   // 解析 /p/<path>?<query>；剥掉内部参数 __key / __ct 并注入请求头
   // （InstaBox 端口边缘代理会剥掉自定义请求头，浏览器因此经查询串传 Key 与 Content-Type）
@@ -124,7 +170,7 @@ function proxyRest(req, res) {
   );
 
   upReq.on('error', (err) => {
-    log('upstream error:', req.method, sub, err.message);
+    log('upstream error:', req.method, innerPath, err.message);
     if (!res.headersSent) {
       res.writeHead(502, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: { code: 'proxy_upstream', message: `上游连接失败: ${err.message}`, retryable: true } }));
@@ -183,6 +229,10 @@ function wsAllowed(host) {
 function handleUpgrade(req, socket, head) {
   const u = new URL(req.url, 'http://localhost');
   if (u.pathname !== '/ws') return; // 交给其他 handler（vite dev 不走这里）
+  if (u.pathname === '/ws' && !authOk(req)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    return socket.destroy();
+  }
 
   // 自测端点：回显边缘代理是否保留了 Sec-WebSocket-Protocol 头（?__echo=1）
   if (u.searchParams.get('__echo') === '1') {
@@ -247,6 +297,7 @@ function handleUpgrade(req, socket, head) {
 
 // ---------------------------------------------------------------- 启动
 const server = http.createServer((req, res) => {
+  if (req.url === '/auth' || req.url.startsWith('/auth?')) return handleAuth(req, res);
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
   return serveStatic(req, res);
 });

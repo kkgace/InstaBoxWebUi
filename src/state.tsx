@@ -2,6 +2,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { getApiKey, setApiKey, getAccounts, upsertAccount, renameAccount, api, errText } from '@/api/client';
 import type { AccountEntry } from '@/api/client';
+import { startNotifyPolling, stopNotifyPolling } from '@/utils/notify';
 import type { Me } from '@/api/types';
 
 interface GlobalCtx {
@@ -48,6 +49,13 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => { refreshMe(); }, [key, refreshMe]);
+
+  // 通知轮询：仅在已配置 Key 时启动（60s 对比沙箱状态）
+  useEffect(() => {
+    if (!key) return;
+    startNotifyPolling(() => { /* NotificationBell 每 5s 从 localStorage 读取 */ });
+    return () => stopNotifyPolling();
+  }, [key]);
 
   const updateKey = useCallback((k: string) => {
     setApiKey(k);

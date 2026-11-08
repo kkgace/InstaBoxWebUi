@@ -1,17 +1,19 @@
 /** 总览：账户、统计、用量卡片、沙箱速览 */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Boxes, Camera, Database, Coins, Activity, RefreshCw } from 'lucide-react';
-import { api, errText } from '@/api/client';
+import { Boxes, Camera, Database, Coins, RefreshCw } from 'lucide-react';
+import { errText } from '@/api/client';
 import { machinesApi } from '@/api/machines';
 import { miscApi } from '@/api/misc';
 import { useGlobal } from '@/state';
+import { useT } from '@/i18n';
 import { Card, Stat, Badge, Button, Spinner, Table, Td } from '@/components/ui';
-import { STATE_META, fmtBytes, fmtTime } from '@/utils/format';
+import { fmtBytes, fmtTime } from '@/utils/format';
 import type { Machine, Usage, Stats } from '@/api/types';
 
 export default function Dashboard() {
   const { me, orgId } = useGlobal();
+  const { t } = useT();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -41,34 +43,34 @@ export default function Dashboard() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold">总览</h1>
+          <h1 className="text-lg font-bold">{t('dash.title')}</h1>
           <p className="text-xs text-dim">
-            {me ? `${me.login}${me.email ? ` · ${me.email}` : ''} · 数据于 ${fmtTime(usage?.computedAt)} 计算` : ' '}
+            {me ? `${me.login}${me.email ? ` · ${me.email}` : ''}${t('dash.computedAt', { t: fmtTime(usage?.computedAt) })}` : ' '}
           </p>
         </div>
-        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> 刷新</Button>
+        <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /> {t('common.refresh')}</Button>
       </div>
 
       {err && <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{err}</div>}
       {loading && !usage ? <Spinner /> : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-            <Stat label="运行中的沙箱" value={running} sub={`共 ${machines.length} 台`} accent />
-            <Stat label="平台运行总数" value={stats?.runningMachines ?? '—'} sub={`更新于 ${fmtTime(stats?.at)}`} />
-            <Stat label="快照" value={usage ? `${usage.snapshots}${usage.limits?.maxSnapshots ? ` / ${usage.limits.maxSnapshots}` : ''}` : '—'} sub={<span className="inline-flex items-center gap-1"><Camera size={11} /> 快照限额</span>} />
-            <Stat label="已存数据" value={fmtBytes(usage?.storedBytes)} sub={`逻辑 ${fmtBytes(usage?.logicalBytes)}`} />
-            <Stat label="磁盘配额" value={usage?.limits?.maxStoredGiB ? `${usage.limits.maxStoredGiB} GiB` : '无限制'} sub={<span className="inline-flex items-center gap-1"><Database size={11} /> {usage?.allocatedDiskGiB ? `已分配 ${usage.allocatedDiskGiB} GiB` : ''}</span>} />
-            <Stat label="本月费用" value={cost != null ? `$${cost.toFixed(3)}` : '$0'} sub={<span className="inline-flex items-center gap-1"><Coins size={11} /> 运行+存储+流量</span>} />
+            <Stat label={t('dash.running')} value={running} sub={t('dash.total', { n: machines.length })} accent />
+            <Stat label={t('dash.platform')} value={stats?.runningMachines ?? '—'} sub={t('dash.updatedAt', { t: fmtTime(stats?.at) })} />
+            <Stat label={t('dash.snapshots')} value={usage ? `${usage.snapshots}${usage.limits?.maxSnapshots ? ` / ${usage.limits.maxSnapshots}` : ''}` : '—'} sub={<span className="inline-flex items-center gap-1"><Camera size={11} /> {t('dash.snapQuota')}</span>} />
+            <Stat label={t('dash.stored')} value={fmtBytes(usage?.storedBytes)} sub={t('dash.logical', { s: fmtBytes(usage?.logicalBytes) })} />
+            <Stat label={t('dash.diskQuota')} value={usage?.limits?.maxStoredGiB ? `${usage.limits.maxStoredGiB} GiB` : t('usage.unlimited')} sub={<span className="inline-flex items-center gap-1"><Database size={11} /> {usage?.allocatedDiskGiB ? t('dash.allocated', { n: usage.allocatedDiskGiB }) : ''}</span>} />
+            <Stat label={t('dash.monthCost')} value={cost != null ? `$${cost.toFixed(3)}` : '$0'} sub={<span className="inline-flex items-center gap-1"><Coins size={11} /> {t('dash.costSub')}</span>} />
           </div>
 
-          <Card title={<Link to="/machines" className="hover:text-sky-400">沙箱</Link>} right={<Link to="/machines" className="text-xs text-sky-400 hover:underline">全部 →</Link>}>
+          <Card title={<Link to="/machines" className="hover:text-sky-400">{t('nav.machines')}</Link>} right={<Link to="/machines" className="text-xs text-sky-400 hover:underline">{t('dash.allMachines')}</Link>}>
             {machines.length === 0 ? (
               <div className="py-6 text-center text-sm text-dim">
                 <Boxes size={28} className="mx-auto mb-2 opacity-40" />
-                还没有沙箱，去 <Link to="/machines" className="text-sky-400 underline">沙箱页</Link> 创建第一台
+                {t('dash.noSandbox')} <Link to="/machines" className="text-sky-400 underline">{t('dash.noSandbox2')}</Link> {t('dash.noSandbox3')}
               </div>
             ) : (
-              <Table head={['名称', '状态', '规格', '模板', '创建时间']}>
+              <Table head={[t('ml.colName'), t('common.status'), t('ml.colSpec'), t('ml.colTemplate'), t('common.createdAt')]}>
                 {machines.slice(0, 8).map((m) => (
                   <tr key={m.id} className="hover:bg-white/[0.03]">
                     <Td><Link to={`/machines/${m.id}`} className="text-sky-400 hover:underline">{m.name}</Link></Td>
@@ -83,11 +85,11 @@ export default function Dashboard() {
           </Card>
 
           {usage?.storage?.items?.length ? (
-            <Card title="存储占用明细">
-              <Table head={['对象', '名称', '占用']}>
+            <Card title={t('dash.storageDetail')}>
+              <Table head={['', t('common.name'), t('dash.stored')]}>
                 {usage.storage.items.map((it, i) => (
                   <tr key={i}>
-                    <Td className="text-xs text-dim">{it.machineId ? (STATE_META.running ? '沙箱' : '沙箱') : '快照'}</Td>
+                    <Td className="text-xs text-dim">{it.machineId ? t('dash.objMachine') : t('dash.objSnapshot')}</Td>
                     <Td>{it.name || it.machineId || it.snapshotId}</Td>
                     <Td className="mono text-xs">{fmtBytes(it.storedBytes)}</Td>
                   </tr>

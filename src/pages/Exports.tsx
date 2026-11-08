@@ -1,16 +1,18 @@
 /** 数据导出：创建（机器/快照 /data 打包）、状态轮询、下载 tar.gz */
 import { useCallback, useEffect, useState } from 'react';
-import { Plus, RefreshCw, Download, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, Download } from 'lucide-react';
 import { errText, apiDownload } from '@/api/client';
 import { miscApi } from '@/api/misc';
 import { machinesApi } from '@/api/machines';
 import { useGlobal } from '@/state';
+import { useT } from '@/i18n';
 import { Card, Button, Badge, ErrorBox, OkBox, Table, Td, Empty, Spinner, Modal, Field, Select, CopyButton } from '@/components/ui';
 import { fmtBytes, fmtTime } from '@/utils/format';
 import type { ExportItem, Machine, Snapshot } from '@/api/types';
 
 export default function Exports() {
   const { orgId } = useGlobal();
+  const { t } = useT();
   const [list, setList] = useState<ExportItem[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [snaps, setSnaps] = useState<Snapshot[]>([]);
@@ -35,42 +37,42 @@ export default function Exports() {
   // building 中的导出自动轮询
   useEffect(() => {
     if (!list.some((x) => x.status === 'queued' || x.status === 'building')) return;
-    const t = setInterval(load, 6000);
-    return () => clearInterval(t);
+    const timer = setInterval(load, 6000);
+    return () => clearInterval(timer);
   }, [list, load]);
 
   const download = async (x: ExportItem) => {
     try {
-      setOk(`下载 ${x.name} 中…`);
+      setOk(t('files.downloading', { n: x.name }));
       const { blob, filename } = await apiDownload(`v1/exports/${x.id}/download`);
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename || x.fileName;
       a.click();
       URL.revokeObjectURL(a.href);
-      setOk(`已下载（${fmtBytes(blob.size)}）`);
+      setOk(t('files.downloaded', { n: x.name, s: fmtBytes(blob.size) }));
     } catch (e) { setErr(errText(e)); }
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-bold">数据导出</h1>
-          <p className="text-xs text-dim">把沙箱或快照的 /data 打包为 .tar.gz 下载（存档 7 天）。需要 API Key 具备 machines:write。</p>
+          <h1 className="text-lg font-bold">{t('exp.title')}</h1>
+          <p className="text-xs text-dim">{t('exp.desc')}</p>
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" onClick={load} loading={loading}><RefreshCw size={14} /></Button>
-          <Button variant="primary" onClick={() => setNewOpen(true)}><Plus size={14} /> 新建导出</Button>
+          <Button variant="primary" onClick={() => setNewOpen(true)}><Plus size={14} /> {t('exp.new')}</Button>
         </div>
       </div>
       <ErrorBox>{err}</ErrorBox>
       {ok && <OkBox>{ok}</OkBox>}
-      {!orgId ? <Card><ErrorBox>无法确定组织上下文</ErrorBox></Card>
+      {!orgId ? <Card><ErrorBox>{t('exp.noCtx')}</ErrorBox></Card>
         : loading && !list.length ? <Spinner /> : list.length === 0 ? (
-          <Card><Empty>暂无导出任务</Empty></Card>
+          <Card><Empty>{t('exp.none')}</Empty></Card>
         ) : (
-          <Table head={['名称', '来源', '状态', '大小', 'SHA-256', '到期', '']}>
+          <Table head={[t('common.name'), t('exp.colSource'), t('common.status'), t('exp.colSize'), t('exp.colSha'), t('common.expiresAt'), t('common.actions')]}>
             {list.map((x) => (
               <tr key={x.id} className="hover:bg-white/[0.03]">
                 <Td>
@@ -93,7 +95,7 @@ export default function Exports() {
                 </Td>
                 <Td className="text-xs text-dim">{fmtTime(x.expiresAt)}</Td>
                 <Td>
-                  {x.status === 'ready' && <Button className="!px-2 !py-1" onClick={() => download(x)}><Download size={13} /> 下载</Button>}
+                  {x.status === 'ready' && <Button className="!px-2 !py-1" onClick={() => download(x)}><Download size={13} /> {t('common.download')}</Button>}
                 </Td>
               </tr>
             ))}
@@ -107,6 +109,7 @@ export default function Exports() {
 function NewExportDialog({ open, onClose, orgId, machines, snaps, onDone }: {
   open: boolean; onClose: () => void; orgId: string | null; machines: Machine[]; snaps: Snapshot[]; onDone: () => void;
 }) {
+  const { t } = useT();
   const [kind, setKind] = useState<'machine' | 'snapshot'>('machine');
   const [targetId, setTargetId] = useState('');
   const [busy, setBusy] = useState(false);
@@ -123,25 +126,25 @@ function NewExportDialog({ open, onClose, orgId, machines, snaps, onDone }: {
   };
 
   return (
-    <Modal open={open} onClose={onClose} title="新建导出">
+    <Modal open={open} onClose={onClose} title={t('exp.newTitle')}>
       <div className="space-y-3">
-        <Field label="导出来源">
+        <Field label={t('exp.source')}>
           <Select value={kind} onChange={(e) => { setKind(e.target.value as 'machine' | 'snapshot'); setTargetId(''); }} className="w-full">
-            <option value="machine">沙箱 /data</option>
-            <option value="snapshot">快照 /data</option>
+            <option value="machine">{t('exp.srcMachine')}</option>
+            <option value="snapshot">{t('exp.srcSnapshot')}</option>
           </Select>
         </Field>
-        <Field label={kind === 'machine' ? '选择沙箱（停止/暂停中的保存了 /data 的沙箱）' : '选择快照（需包含 /data）'}>
+        <Field label={kind === 'machine' ? t('exp.pickMachine') : t('exp.pickSnap')}>
           <Select value={targetId} onChange={(e) => setTargetId(e.target.value)} className="w-full">
-            <option value="">选择…</option>
+            <option value="">{t('exp.pick')}</option>
             {kind === 'machine' && machines.map((m) => <option key={m.id} value={m.id}>{m.name}（{m.state}）</option>)}
-            {kind === 'snapshot' && snaps.map((s) => <option key={s.id} value={s.id}>{s.name}{s.dataSizeBytes ? '' : '（仅系统盘）'}</option>)}
+            {kind === 'snapshot' && snaps.map((s) => <option key={s.id} value={s.id}>{s.name}{s.dataSizeBytes ? '' : t('exp.onlyRoot')}</option>)}
           </Select>
         </Field>
         <ErrorBox>{err}</ErrorBox>
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>取消</Button>
-          <Button variant="primary" loading={busy} onClick={submit} disabled={!targetId}>创建</Button>
+          <Button variant="ghost" onClick={onClose}>{t('common.cancel')}</Button>
+          <Button variant="primary" loading={busy} onClick={submit} disabled={!targetId}>{t('common.create')}</Button>
         </div>
       </div>
     </Modal>

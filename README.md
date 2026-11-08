@@ -11,8 +11,8 @@ A full-featured, dark-mode web console that brings **every API of [InstaBox](htt
 | Module | Capabilities |
 |---|---|
 | Dashboard | Account info, platform stats, storage / cost / quota cards, sandbox overview |
-| Sandboxes | Create (template / size / env / metadata / auto-pause / scheduled delete), start / stop / suspend / resume / wake / delete, rename / resize / disk grow, restore to snapshot, fork clone, activity leases |
-| Sandbox detail (13 tabs) | Overview · **Terminal** (xterm.js over WebSocket) · **Files** (browse / edit / upload / download, up to 5 GiB) · **Commands** (exec + history) · Processes (list / kill) · **Desktop** (install / start / takeover + noVNC + login-free share links) · **Ports** (publish HTTPS URLs, public/private, token rotation) · Snapshot / restore / fork · Serial console logs (incremental) · **Metrics** charts (CPU / memory / network / disk IO) · SSH (info / tokens / cert issuance) · machine-level Secrets · settings |
+| Sandboxes | Create (template / size / env / metadata / auto-pause / scheduled delete), start / stop / suspend / resume / wake / delete, rename / resize / disk grow, restore to snapshot, fork clone, activity leases, **saved create profiles** (one-click presets) |
+| Sandbox detail (13 tabs) | Overview · **Terminal** (xterm.js, **multi-tab sessions**, font size control) · **Files** (browse / edit with **Monaco editor** / upload / download, up to 5 GiB) · **Commands** (exec + history) · Processes (list / kill) · **Desktop** (install / start / takeover + noVNC + login-free share links) · **Ports** (publish HTTPS URLs, public/private, token rotation) · Snapshot / restore / fork · Serial console logs (incremental) · **Metrics** charts (CPU / memory / network / disk IO) · SSH (info / tokens / cert issuance) · machine-level Secrets · settings |
 | Snapshots | List, delete, **browse snapshot files**, one-click create sandbox from snapshot |
 | Ports | Global list of all published ports |
 | Secrets | Org Secret CRUD, atomic batch import, proxy/env delivery, host scoping |
@@ -21,9 +21,10 @@ A full-featured, dark-mode web console that brings **every API of [InstaBox](htt
 | Usage | Limits & cost breakdown, per-machine billing windows (incl. deleted), allowed sizes |
 | Templates | All templates / versions / bundled software / default spec |
 | **API console** | Browsable catalog of all 160 operations (generated from `openapi.yaml`) + generic request builder — covers every endpoint the UI doesn't have a page for |
+| **Notifications** | Sandbox state changes and errors → browser push notifications + in-app event center (bell in the top bar) |
 | Settings | Multi-account API key management (add / switch / remove), proxy health, deployment guide |
 
-Async operations (create / start / snapshot / restore …) poll `GET /v1/operations/{id}?wait=25s` with live progress; API error envelopes are translated into friendly Chinese/English messages.
+Extras: **bilingual UI** (English / 简体中文, follows your browser and switchable in one click) · **mobile-friendly** (drawer sidebar, responsive tables) · dark theme · async operations poll `GET /v1/operations/{id}?wait=25s` with live progress · API error envelopes translated into friendly messages.
 
 ## Why a proxy?
 
@@ -135,6 +136,7 @@ docker run -d -p 3000:3000 --restart unless-stopped --name instabox-ui instabox-
 | `PORT` | 3000 (prod) / 8787 (dev) | Listen port |
 | `INSTABOX_API` | https://api.instabox.sh | Upstream API |
 | `INSTABOX_API_KEY` | — | Server-injected key when the client sends none |
+| `CONSOLE_PASSWORD` | — | **Access password for the console** — when set, `/p/*` and `/ws` require a login (the UI shows a password screen); static assets stay open so the login page can load. Cookie session lasts 30 days |
 | `ALLOW_WS_HOSTS` | — | Extra allowed WebSocket target domain suffixes (comma-separated) |
 
 ## Maintenance & upgrade
@@ -180,10 +182,12 @@ Log lines: REST access (`method path → status, ms`, query strings and headers 
 ## Security
 
 - Keys live only in browser localStorage (including multi-account profiles); the proxy persists nothing
+- Optional `CONSOLE_PASSWORD` protects the proxy surface (`/p/*`, `/ws`) with an HttpOnly cookie session
 - Forwarded request headers are whitelisted (`X-API-Key`, `Idempotency-Key`, `X-Confirm-Delete`, `Range`, …); everything else — cookies included — is dropped
 - WebSocket targets are restricted to `*.instabox.sh` / `*.instabox.tech`; the proxy cannot be abused as an open relay
 - Proxy logs contain no credentials (masked tickets, no query strings, no headers)
 - Sandbox deletion requires typing its name (frontend) plus `X-Confirm-Delete` (API)
+- CI runs ESLint + a full type-checked build on every push
 
 ## Known limitations
 
