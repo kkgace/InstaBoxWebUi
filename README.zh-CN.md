@@ -94,24 +94,31 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > fi
 > ```
 
-## Docker Compose（最简部署）
+## Docker Compose
 
-三条命令，宿主机无需 Node.js 和任何构建步骤：
+### 方式 A — 预构建镜像（推荐，无需 clone、无需构建）
+
+每次 push 到 `main` 会自动向 ghcr.io 发布多架构镜像（`amd64` + `arm64`，tag `:latest`；发版 tag 对应 `:vX.Y.Z`，每次提交对应 `:sha-*`）。部署三条命令：
+
+```bash
+mkdir instabox-ui && cd instabox-ui
+curl -fsSL https://raw.githubusercontent.com/kkgace/InstaBoxWebUi/main/docker-compose.prebuilt.yml -o docker-compose.yml
+docker compose up -d
+```
+
+浏览器打开 `http://localhost:3000`，点顶栏「配置 API Key」。镜像内置 `HEALTHCHECK`（每 30 秒探测 `/healthz`，`docker compose ps` 可查状态）；`restart: unless-stopped` 保证崩溃/重启后自动拉起。
+
+> **注意**：仓库私有时 ghcr 镜像也默认私有——拉取前需 `docker login ghcr.io -u <用户名>`（密码用勾选 `read:packages` 的 PAT）。仓库开源后，到 GitHub → Packages → instaboxwebui → Package settings 把可见性改为 Public，即可匿名拉取。
+
+### 方式 B — 从源码构建
 
 ```bash
 git clone https://github.com/kkgace/InstaBoxWebUi.git
 cd InstaBoxWebUi
-docker compose up -d        # 构建并启动；崩溃/重启后自动拉起
+docker compose up -d        # 本地构建；崩溃/重启后自动拉起
 ```
 
-浏览器打开 `http://localhost:3000`，点顶栏「配置 API Key」即可。首次构建约 2-3 分钟。
-
-```bash
-docker compose logs -f      # 跟踪日志
-docker compose down         # 停止并移除
-```
-
-改宿主机端口：编辑 `ports` 左侧（如 `"8080:3000"`）；服务端注入 Key：编辑 `docker-compose.yml` 的 `environment` 下的 `INSTABOX_API_KEY`。镜像内置 `HEALTHCHECK`，每 30 秒请求一次 `/healthz`（`docker compose ps` 可查看健康状态）。
+常用操作：`docker compose logs -f`（跟踪日志）· `docker compose down`（停止并移除）。改宿主机端口：编辑 `ports` 左侧（如 `"8080:3000"`）；服务端注入 Key：编辑 `environment` 下的 `INSTABOX_API_KEY`。
 
 ## Docker（单容器）
 

@@ -94,24 +94,31 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > fi
 > ```
 
-## Docker Compose (easiest deployment)
+## Docker Compose
 
-Three commands — no Node.js, no build steps on the host:
+### Option A — prebuilt image (recommended, no clone / no build)
+
+Multi-arch images (`amd64` + `arm64`) are published to ghcr.io automatically on every push to `main` (tag `:latest`, plus `:vX.Y.Z` per release tag and `:sha-*` per commit). Deployment is three commands:
+
+```bash
+mkdir instabox-ui && cd instabox-ui
+curl -fsSL https://raw.githubusercontent.com/kkgace/InstaBoxWebUi/main/docker-compose.prebuilt.yml -o docker-compose.yml
+docker compose up -d
+```
+
+Open `http://localhost:3000`, click **Configure API Key** in the top bar. The image ships a built-in `HEALTHCHECK` on `/healthz` (`docker compose ps` shows the status); `restart: unless-stopped` keeps it alive across crashes and reboots.
+
+> **Note**: while this GitHub repository is private, its ghcr image is private too — pull with `docker login ghcr.io -u <user>` (PAT with `read:packages`). After the repo goes public, flip the package visibility (GitHub → Packages → instaboxwebui → Package settings → Public) and pulls become anonymous.
+
+### Option B — build from source
 
 ```bash
 git clone https://github.com/kkgace/InstaBoxWebUi.git
 cd InstaBoxWebUi
-docker compose up -d        # builds + starts, auto-restart on crash/reboot
+docker compose up -d        # builds locally, auto-restart on crash/reboot
 ```
 
-Open `http://localhost:3000`, click **Configure API Key** in the top bar. First build takes ~2–3 minutes.
-
-```bash
-docker compose logs -f      # follow logs
-docker compose down         # stop and remove
-```
-
-Change the host port by editing the left side of `ports` (`"8080:3000"`); a server-injected key can be set in `docker-compose.yml` under `environment` (`INSTABOX_API_KEY`). The image ships a built-in `HEALTHCHECK` hitting `/healthz` every 30 s (`docker compose ps` shows the status).
+Common operations: `docker compose logs -f` (follow logs) · `docker compose down` (stop and remove). Change the host port via the left side of `ports` (`"8080:3000"`); a server-injected key goes under `environment` (`INSTABOX_API_KEY`).
 
 ## Docker (single container)
 

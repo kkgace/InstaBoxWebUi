@@ -1,0 +1,24 @@
+# InstaBox WebUI 控制台 — 预构建镜像部署（无需 clone 仓库、无需本地构建）
+#
+# 用法：
+#   mkdir instabox-ui && cd instabox-ui
+#   curl -fsSL https://raw.githubusercontent.com/kkgace/InstaBoxWebUi/main/docker-compose.prebuilt.yml -o docker-compose.yml
+#   docker compose up -d
+#
+# 镜像每次 push 到 main 自动更新（:latest）；固定版本请用 :v1.2.3 样式的 tag。
+#
+# 注意：仓库私有时 ghcr 镜像也默认私有，拉取前需：
+#   docker login ghcr.io -u <GitHub用户名>（密码为勾选 read:packages 的 PAT）
+# 开源并把 Package 可见性改为 Public 后可匿名拉取。
+services:
+  instabox-ui:
+    image: ghcr.io/kkgace/instaboxwebui:latest
+    container_name: instabox-ui
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      # 可选：服务端注入 API Key（浏览器不带 Key 时兜底）
+      # INSTABOX_API_KEY: ibk_xxx
+    restart: unless-stopped
+    # 健康检查继承自镜像内的 HEALTHCHECK（GET /healthz）
