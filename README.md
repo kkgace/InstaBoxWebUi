@@ -1,116 +1,171 @@
-# InstaBox WebUI 控制台
+# InstaBox WebUI Console
 
-把 [api.instabox.sh](https://instabox.sh/docs)（InstaBox 官方管理 API，160 个操作）的全部功能搬进浏览器的深色控制台。
+**English** | [简体中文](README.zh-CN.md)
 
-![架构](https://img.shields.io/badge/React18-Vite6-38bdf8) ![代理](https://img.shields.io/badge/Node%20代理-REST%20%2B%20WebSocket-38bdf8)
+[![React 18](https://img.shields.io/badge/React-18-38bdf8)](https://react.dev) [![Vite 6](https://img.shields.io/badge/Vite-6-a78bfa)](https://vite.dev) [![License: MIT](https://img.shields.io/badge/License-MIT-34d399)](LICENSE) [![Node >= 20](https://img.shields.io/badge/Node-%E2%89%A520-fbbf24)](https://nodejs.org)
 
-## 为什么需要代理服务？
+A full-featured, dark-mode web console that brings **every API of [InstaBox](https://instabox.sh/docs)** (`api.instabox.sh`, 160 operations) into the browser — sandboxes, terminal, desktop, files, ports, SSH, snapshots, secrets, webhooks, monitoring and usage. Works with your API key only; no CLI, no SSH client required.
 
-InstaBox API 不允许浏览器跨域直连（CORS 预检返回 404），所以本仓库自带一个零依赖（仅 `ws`）的 Node 代理：
+## Features
 
-```
-浏览器 (React SPA)
-   │  /p/*        REST 透传（转发 X-API-Key / Idempotency-Key / X-Confirm-Delete / Range，流式、长轮询不超时）
-   │  /ws?url=…   WebSocket 透传（终端 PTY / VNC，目标域限定 *.instabox.sh，防开放中继）
-   ▼
-Node server/index.mjs  ──►  https://api.instabox.sh
-   └─ 兼职静态托管 dist/（SPA fallback）
-```
-
-API Key 只保存在**浏览器 localStorage**，经代理转发，代理本身无状态（也可用 `INSTABOX_API_KEY` 环境变量在服务端注入收口）。
-
-## 功能清单
-
-| 模块 | 能力 |
+| Module | Capabilities |
 |---|---|
-| 总览 | 账户信息、平台统计、存储/费用/限额卡片、沙箱速览 |
-| 沙箱 | 列表、创建（模板/规格/环境变量/元数据/自动暂停/定时删除）、启动/停止/暂停/恢复/唤醒/删除 |
-| 沙箱详情 | 概览与活动租约 · **终端**（xterm.js + WS）· **文件**（浏览/预览/编辑/上传/下载/新建/删除/重命名）· **命令**（exec + 历史）· 进程（列表/kill）· **桌面**（安装/启动/接管 + noVNC + 免登录分享链接）· 端口发布（公开/私有/轮换 token）· 快照/还原/克隆（fork）· 串口日志（增量）· 监控图表（CPU/内存/磁盘）· SSH（连接信息/Token/证书签发）· 机器级 Secrets 选择与投递刷新 · 设置（改名/调规格/扩盘/自动暂停/元数据） |
-| 快照 | 列表、删除、**浏览快照文件**（只读）、从快照一键建沙箱 |
-| 端口 | 全局已发布端口总览 |
-| Secrets | 组织 Secret CRUD、批量导入（原子）、proxy/env 两种投递、目标主机限定 |
-| Webhooks | 端点 CRUD、启用/停用、测试事件、签名密钥轮换、投递记录与重试（9 种事件） |
-| 数据导出 | 沙箱/快照 /data 打包 .tar.gz、状态轮询、下载 |
-| 用量 | 限额与费用构成、按机器计费窗口查询（含已删除沙箱）、规格清单 |
-| 模板 | 全部模板/版本/内置软件/默认规格 |
-| API 控制台 | 160 个端点目录（由 openapi.yaml 生成）+ 通用请求构造器，覆盖一切长尾端点 |
-| 设置 | API Key 管理、代理状态、Dashboard 专属功能说明、部署指引 |
+| Dashboard | Account info, platform stats, storage / cost / quota cards, sandbox overview |
+| Sandboxes | Create (template / size / env / metadata / auto-pause / scheduled delete), start / stop / suspend / resume / wake / delete, rename / resize / disk grow, restore to snapshot, fork clone, activity leases |
+| Sandbox detail (13 tabs) | Overview · **Terminal** (xterm.js over WebSocket) · **Files** (browse / edit / upload / download, up to 5 GiB) · **Commands** (exec + history) · Processes (list / kill) · **Desktop** (install / start / takeover + noVNC + login-free share links) · **Ports** (publish HTTPS URLs, public/private, token rotation) · Snapshot / restore / fork · Serial console logs (incremental) · **Metrics** charts (CPU / memory / network / disk IO) · SSH (info / tokens / cert issuance) · machine-level Secrets · settings |
+| Snapshots | List, delete, **browse snapshot files**, one-click create sandbox from snapshot |
+| Ports | Global list of all published ports |
+| Secrets | Org Secret CRUD, atomic batch import, proxy/env delivery, host scoping |
+| Webhooks | Endpoint CRUD, enable / disable, test event, secret rotation, deliveries + retry (9 event types) |
+| Exports | Pack a sandbox/snapshot `/data` as `.tar.gz`, poll status, download |
+| Usage | Limits & cost breakdown, per-machine billing windows (incl. deleted), allowed sizes |
+| Templates | All templates / versions / bundled software / default spec |
+| **API console** | Browsable catalog of all 160 operations (generated from `openapi.yaml`) + generic request builder — covers every endpoint the UI doesn't have a page for |
+| Settings | Multi-account API key management (add / switch / remove), proxy health, deployment guide |
 
-异步操作（创建/启停/快照/还原等）统一走 `GET /v1/operations/{id}?wait=25s` 长轮询，界面实时显示阶段；API 错误信封自动翻译成中文提示。
+Async operations (create / start / snapshot / restore …) poll `GET /v1/operations/{id}?wait=25s` with live progress; API error envelopes are translated into friendly Chinese/English messages.
 
-## 本地运行
+## Why a proxy?
+
+The InstaBox API does not allow cross-origin browser calls (CORS preflight returns 404), so this repo ships a zero-dependency (only `ws`) Node proxy:
+
+```
+Browser (React SPA)
+   │  /p/*        REST passthrough (forwards Idempotency-Key / X-Confirm-Delete / Range, streaming, long-poll safe)
+   │  /ws?url=…   WebSocket passthrough (terminal PTY / desktop VNC, target restricted to *.instabox.sh / *.instabox.tech)
+   ▼
+server/index.mjs  ──►  https://api.instabox.sh
+   └─ Also serves dist/ statically (SPA fallback)
+```
+
+API keys live only in your **browser localStorage**; the proxy is stateless (optionally inject a server-side key via `INSTABOX_API_KEY`).
+
+Two quirks of the InstaBox **port edge proxy** are handled transparently (these cost us a few debugging hours — read this before forking):
+
+1. **Custom request headers are stripped** (`X-API-Key`, `Authorization` …). The browser therefore sends the key and Content-Type as **query parameters** (`?__key=…&__ct=…`); the proxy injects them as headers upstream and strips them from the upstream query. Proxy logs never contain credentials.
+2. **Terminal/desktop tickets** (`POST /v1/machines/{id}/access`) return a `wss://connect.instabox.sh` URL bound to your browser Origin and requiring **two WebSocket subprotocols**: the response's `protocol` field (`instabox-access.v1`) plus `instabox-access-token.<token>`. The proxy forwards `Origin` and passes subprotocols via the WebSocket client's `protocols` argument (not custom headers — otherwise the server replies *"Server sent a subprotocol but none was requested"* and the connection drops). A `__subproto` query param acts as a fallback if the edge proxy ever starts stripping subprotocol headers.
+
+## Getting started
 
 ```bash
 npm install
-npm run build     # tsc + vite 构建 dist/
-npm start         # 代理 + 静态托管，http://localhost:3000
+npm run build     # tsc + vite → dist/
+npm start         # proxy + static hosting on http://localhost:3000
 ```
 
-开发模式（可选）：
+Dev mode (optional):
 
 ```bash
-node server/index.mjs        # 终端 1：代理 8787
-npm run dev                  # 终端 2：vite 5173（自动转发 /p、/ws）
+node server/index.mjs   # terminal 1: proxy on 8787
+npm run dev             # terminal 2: vite on 5173 (forwards /p, /ws)
 ```
 
-打开界面后点「配置 API Key」：
-1. [dashboard.instabox.sh](https://dashboard.instabox.sh) → API keys → **Scopes 全选**（machines/images × read/write/delete）→ 创建（只显示一次）
-2. 或 CLI：`instabox keys create`
-3. 粘贴 `ibk_...`，保存即用（建议设 1-30 天有效期，用完撤销）
+Then click **Configure API Key** in the top bar:
 
-## 部署到 InstaBox 沙箱（获得固定 HTTPS URL）
+1. Create a key at [dashboard.instabox.sh](https://dashboard.instabox.sh) → **API keys** (select **all scopes**: machines / images × read / write / delete), or run `instabox keys create`
+2. Paste the `ibk_…` key — it is stored only in your browser's localStorage
+3. To manage **another account's** sandbox (each free account gets 1), click the account button in the top bar → **Add account** and paste that account's key; switch accounts anytime
 
-机器没有固定公网 IP，但 `instabox-port publish` 可以把机器内服务发布为稳定的 HTTPS URL：
+## Deploy to an InstaBox sandbox (fixed HTTPS URL)
+
+A sandbox has no public IP, but `instabox-port publish` gives any local HTTP service a stable HTTPS URL:
 
 ```bash
-# 方式一：一键脚本（ssh.txt 放 SSH 命令行）
+# One-shot script (put your SSH command line into ssh.txt)
 bash deploy.sh
 
-# 方式二：手动
+# Or manually
 npm run build
 tar czf /tmp/console.tgz dist server package.json
 ssh -p 2222 <token>@ssh.instabox.sh mkdir -p /data/workspace/console
 scp -P 2222 /tmp/console.tgz <token>@ssh.instabox.sh:/data/workspace/
-ssh -p 2222 <token>@ssh.instabox.sh "cd /data/workspace/console && tar xzf ../console.tgz && npm i ws@8 --omit=dev && (nohup env PORT=3000 NODE_ENV=production node server/index.mjs &); instabox-port publish 3000"
+ssh -p 2222 <token>@ssh.instabox.sh \
+  "cd /data/workspace/console && tar xzf ../console.tgz && npm i ws@8 --omit=dev && \
+   (setsid env PORT=3000 NODE_ENV=production node server/index.mjs > console.log 2>&1 < /dev/null &); \
+   instabox-port publish 3000"
 # → https://3000-<machine-id>.instabox.tech
 ```
 
-> URL 在沙箱运行期间有效；沙箱重启后 URL 不变（instabox-port 重新 publish 一次即可）。撤销：`instabox-port unpublish 3000`。
+> The URL stays valid while the sandbox runs and its form is permanent. To survive sandbox restarts, the following auto-start snippet in the sandbox's `~/.bashrc` re-launches the server on any login (SSH or dashboard terminal):
+>
+> ```bash
+> if [ -d /data/workspace/console ] && ! pgrep -f "[n]ode server/index.mjs" >/dev/null 2>&1; then
+>   (cd /data/workspace/console && setsid env PORT=3000 NODE_ENV=production node server/index.mjs > console.log 2>&1 < /dev/null &) 2>/dev/null
+> fi
+> ```
 
 ## Docker
 
 ```bash
 docker build -t instabox-ui .
 docker run -p 3000:3000 instabox-ui
-# 服务端收口 Key（可选）：-e INSTABOX_API_KEY=ibk_xxx
+# Server-side key (optional): -e INSTABOX_API_KEY=ibk_xxx
 ```
 
-## 安全说明
+## Configuration (server/index.mjs)
 
-- Key 仅存浏览器 localStorage；对代理的所有请求只转发白名单头（`X-API-Key`、`Idempotency-Key`、`X-Confirm-Delete`、`Range` 等），其余（Cookie 等）一律剥离。
-- WebSocket 代理目标域强制限定 `*.instabox.sh` / `*.instabox.tech`，不可被当作任意中继。
-- 删除沙箱必须输入名称确认（前端）+ `X-Confirm-Delete`（API）。
-- 服务器端/浏览器均不落盘任何凭据。
-
-## 环境变量（server/index.mjs）
-
-| 变量 | 默认 | 说明 |
+| Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | 生产 3000 / 开发 8787 | 监听端口 |
-| `INSTABOX_API` | https://api.instabox.sh | 上游 API 地址 |
-| `INSTABOX_API_KEY` | — | 服务端注入 Key（客户端不带时使用） |
-| `ALLOW_WS_HOSTS` | — | 额外允许的 WS 目标域后缀（逗号分隔） |
+| `PORT` | 3000 (prod) / 8787 (dev) | Listen port |
+| `INSTABOX_API` | https://api.instabox.sh | Upstream API |
+| `INSTABOX_API_KEY` | — | Server-injected key when the client sends none |
+| `ALLOW_WS_HOSTS` | — | Extra allowed WebSocket target domain suffixes (comma-separated) |
 
-## 目录结构
+## Maintenance & upgrade
 
+**Upgrade to a new version**
+
+```bash
+git pull && npm install && npm run build && bash deploy.sh
 ```
-server/index.mjs        Node 代理（REST 透传 + WS 透传 + 静态托管）
-src/api/client.ts       fetch 封装、错误信封翻译、Operation 长轮询、WS 地址
-src/api/machines.ts     沙箱/文件/终端/桌面/端口/SSH/Secrets 端点
-src/api/misc.ts         快照/模板/用量/组织/Secrets/Webhook/导出端点
-src/api/openapi-paths.json  API 目录（npm run gen:catalog 重新生成）
-src/components/         布局 + 基础组件库
-src/pages/              Dashboard / Machines / MachineDetail(13 Tab) / …
-scripts/gen_catalog.py  从 openapi.yaml 生成端点目录
-deploy.sh / Dockerfile  部署到沙箱 / 容器化
+
+`deploy.sh` repacks `dist/ + server/`, uploads, restarts the service and re-publishes the port — the URL never changes.
+
+**Regenerate the API catalog** after InstaBox changes its API
+
+```bash
+# refresh openapi.yaml first, then:
+npm run gen:catalog && npm run build && bash deploy.sh
 ```
+
+**Operate the service on the sandbox**
+
+```bash
+# start
+cd /data/workspace/console && setsid env PORT=3000 NODE_ENV=production node server/index.mjs > console.log 2>&1 < /dev/null
+# stop (note the [n] trick — otherwise pkill kills your own ssh session)
+pkill -f "[n]ode server/index.mjs"
+# logs: /data/workspace/console/console.log
+```
+
+Log lines: REST access (`method path → status, ms`, query strings and headers excluded), `access-resp:` masked ticket dumps (token truncated to 6 chars) and `ws:` / `ws-open` / `ws-close` / `ws-err` WebSocket diagnostics.
+
+**Rotate an API key**: revoke the old one in the dashboard → create a new one → top-bar account manager → add / replace. Multiple accounts are supported and switching is instant.
+
+**Troubleshooting**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| 502 from the URL | Sandbox runs but the node service died (after a sandbox restart cycle) | Log in to the sandbox once (SSH or dashboard terminal) — the bashrc auto-start relaunches it |
+| Timeout / unreachable | Sandbox is paused or stopped (free tier auto-pauses after 30 idle minutes) | Click Resume in the official dashboard |
+| Terminal/desktop flashes then closes | Subprotocol / Origin not passed through | Fixed in current version; if it recurs, check `ws-err:` lines in console.log |
+| `missing_scope` | API key lacks a scope | Recreate the key with all scopes selected |
+
+## Security
+
+- Keys live only in browser localStorage (including multi-account profiles); the proxy persists nothing
+- Forwarded request headers are whitelisted (`X-API-Key`, `Idempotency-Key`, `X-Confirm-Delete`, `Range`, …); everything else — cookies included — is dropped
+- WebSocket targets are restricted to `*.instabox.sh` / `*.instabox.tech`; the proxy cannot be abused as an open relay
+- Proxy logs contain no credentials (masked tickets, no query strings, no headers)
+- Sandbox deletion requires typing its name (frontend) plus `X-Confirm-Delete` (API)
+
+## Known limitations
+
+- Free accounts: 1 sandbox (any state) / 5 snapshots; auto-pause after 30 idle minutes — billing by design
+- Installing/starting the desktop component takes minutes (downloads Xfce/Chromium into the sandbox)
+- Billing / members / API-key creation and other session-only features must be done in the official dashboard; API keys cannot call them
+- The Metrics tab's network counters exclude SSH and public-port traffic (API design)
+
+## License
+
+[MIT](LICENSE)
