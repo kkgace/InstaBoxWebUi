@@ -1,0 +1,17 @@
+node_modules/
+dist/
+*.log
+*.tar.gz
+.DS_Store
+.env
+ssh.txt
+.secrets/
+tsconfig.tsbuildinfo
+# 研究阶段的临时文件
+api_inventory.txt
+schemas.txt
+schemas2.txt
+extract_api.py
+extract_schemas.py
+extract2.py
+.zcode/

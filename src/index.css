@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+@theme {
+  --color-bg: #0b0f17;
+  --color-panel: #111826;
+  --color-panel2: #161f30;
+  --color-line: #1f2a3d;
+  --color-txt: #dbe4f0;
+  --color-dim: #8493ab;
+  --color-acc: #38bdf8;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-txt);
+  font-family: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+/* 滚动条 */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: #2a3a55; border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: #3a4f70; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+.mono {
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
+
+/* xterm 透明背景 */
+.xterm .xterm-viewport { background-color: transparent !important; }
+
+/* 数字输入去掉箭头 */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }

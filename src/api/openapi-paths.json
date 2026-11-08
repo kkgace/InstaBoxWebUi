@@ -1,0 +1,2384 @@
+{
+"ops": [
+{
+"m": "GET",
+"p": "/v1/keys",
+"s": "List your personal org's API keys (expired ones included, revoked ones not), as `GET /v1/orgs/{id}/keys` for it. Signed-",
+"d": "",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/keys",
+"s": "Create an API key. Signed-in sessions only; an API key gets 403 permission_denied.",
+"d": "The reply holds the secret (`key`), shown only here. No Idempotency-Key is used:",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CreateAPIKeyRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/keys/{id}",
+"s": "Revoke one of your personal org's API keys. Signed-in sessions only.",
+"d": "Requests with the key then fail with `401 revoked_key`; SSH certificates the key issued are revoked too (they stop working and their open sessions close). Repeating it returns 404.",
+"g": "API 密钥",
+"auth": "session",
+"params": [
+{
+"name": "id",
+"in": "path",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orca/keys",
+"s": "Keys that sign Orca runtime assertions. No authentication.",
+"d": "",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/keys",
+"s": "An org's API keys (expired ones included, revoked ones not). The owner and admins (a personal org's owner); signed-in se",
+"d": "",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/keys",
+"s": "Create an API key of an org. The owner and admins (a personal org's owner); signed-in sessions only.",
+"d": "Every API key belongs to one org and reaches no other. A workspace's key",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CreateWorkspaceAPIKeyRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/keys/{keyId}",
+"s": "Revoke an org's API key. The owner and admins (a personal org's owner); signed-in sessions only.",
+"d": "Requests with the key then fail with `401 revoked_key`; SSH certificates the key issued are revoked too. Repeating it returns 404. Writes `org.key.revoke` to the audit log.",
+"g": "API 密钥",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/secrets",
+"s": "List an org's Secret metadata, never values.",
+"d": "API keys require `machines:read`. All org members can list metadata. 404 if Secrets are unavailable.",
+"g": "Secrets",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/secrets/import",
+"s": "Atomically create or replace a batch of org Secrets.",
+"d": "The org's owner or admin only; of API keys, only the workspace's own key",
+"g": "Secrets",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "ImportSecretsRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/secrets/{name}",
+"s": "Delete an org Secret and its explicit sandbox grants.",
+"d": "The org's owner or admin only; of API keys, only the workspace's own key",
+"g": "Secrets",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PUT",
+"p": "/v1/orgs/{id}/secrets/{name}",
+"s": "Create or replace an org Secret.",
+"d": "The org's owner or admin only; of API keys, only the workspace's own key",
+"g": "Secrets",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "PutSecretRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/vault",
+"s": "The caller's Vault items, by name. Sign-in sessions only.",
+"d": "Values are never returned. Each item says how many of the caller's live",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/vault/import",
+"s": "Atomically import environment variables into the per-user Vault.",
+"d": "Sign-in sessions only. Omitted names are kept; invalid input leaves every item unchanged.",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": {
+"ref": null,
+"props": [
+"selector",
+"values"
+]
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/vault/{name}",
+"s": "Delete a Vault item. Sign-in sessions only.",
+"d": "Machines lose it at their next boot, resume or push (a file item's file is removed then, unless changed in the machine since).",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/vault/{name}",
+"s": "Change a Vault item's selector without resending its value. Sign-in sessions only.",
+"d": "",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "UpdateVaultItemRequest"
+}
+},
+{
+"m": "PUT",
+"p": "/v1/vault/{name}",
+"s": "Create or replace a Vault item. Sign-in sessions only.",
+"d": "The whole item is sent, the value included; a replace keeps the ID.",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "PutVaultItemRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/vault/{name}/export",
+"s": "Recover one retained legacy item as a private JSON download.",
+"d": "Signed-in original owner only; API keys cannot export. Only items",
+"g": "Vault(旧)",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/sessions",
+"s": "List your active sign-ins (CLI and browser sessions).",
+"d": "",
+"g": "会话",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/sessions/{id}",
+"s": "Sign out one of your sessions (revokes all its tokens).",
+"d": "Revoking the current browser session also clears its cookie. No Idempotency-Key is needed; repeating it returns 404.",
+"g": "会话",
+"auth": "session",
+"params": [
+{
+"name": "id",
+"in": "path",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/openapi.json",
+"s": "This document as JSON.",
+"d": "The OpenAPI document of this server, converted to JSON. Public.",
+"g": "其他",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/stats",
+"s": "Public figures, such as how many sandboxes are running right now.",
+"d": "Public, no credentials, readable from any origin. `runningMachines` counts every user's sandboxes in state `running`, recounted at most every 2 seconds (`at` is when). The landing page's live count re",
+"g": "其他",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/tunnels/{ticket}",
+"s": "WebSocket upgrade proxied to the sandbox's Orca runtime.",
+"d": "The ticket is the credential (WebSocket clients cannot set headers).",
+"g": "其他",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/exports/{id}",
+"s": "Get an export.",
+"d": "API keys: `machines:write` (or the legacy `machines:exec`). The workspace's owner and admins, or the member who owns its source; 404 for anyone else.",
+"g": "导出",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/exports/{id}/download",
+"s": "Download a ready export.",
+"d": "API keys: `machines:write` (or the legacy `machines:exec`). The same people as `GET /v1/exports/{id}`. Streams the `.tar.gz` (`Content-Disposition` names it). `Range: bytes=N-` resumes a download (206",
+"g": "导出",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/images",
+"s": "Deprecated: GET /v1/snapshots.",
+"d": "The old name of GET /v1/snapshots, in the old shape. API keys: needs one of the scopes `images:read`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/images/{id}",
+"s": "Deprecated: DELETE /v1/snapshots/{id}.",
+"d": "The old name of DELETE /v1/snapshots/{id}. API keys: needs one of the scopes `images:delete`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/images/{id}",
+"s": "Deprecated: GET /v1/snapshots/{id}.",
+"d": "The old name of GET /v1/snapshots/{id}, in the old shape. API keys: needs one of the scopes `images:read`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/images/{id}/files",
+"s": "Deprecated: GET /v1/snapshots/{id}/files.",
+"d": "The old name of GET /v1/snapshots/{id}/files. API keys: needs one of the scopes `images:read`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/snapshots",
+"s": "List the snapshots of your orgs.",
+"d": "API keys: needs one of the scopes `images:read`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/snapshots/{id}",
+"s": "Delete a snapshot.",
+"d": "Sandboxes created from it are not affected. Its data is cleaned up once no sandbox needs it. Any member of the snapshot's org, or an admin, may delete it (another org's is 404). API keys: needs one of",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/snapshots/{id}",
+"s": "Get a snapshot of one of your orgs.",
+"d": "API keys: needs one of the scopes `images:read`.",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/snapshots/{id}/files",
+"s": "Read a file or directory of a snapshot's system files.",
+"d": "Reads the snapshot's saved system files directly; no sandbox runs. A directory lists its entries (directories first, then by name, at most 5000); a regular file returns its content as text (at most 25",
+"g": "快照",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/operations/{id}",
+"s": "Get an operation (the progress of a sandbox change).",
+"d": "API keys: needs one of the scopes `machines:read`, `images:read`.",
+"g": "操作",
+"auth": "apikey",
+"params": [
+{
+"name": "wait",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/feedback",
+"s": "File an `instabox feedback` report, which opens the account's support ticket.",
+"d": "A session or a personal API key may file one; a workspace key may not (`permission_denied`). The account must be activated (`invite_required` otherwise). The report goes to the support service with th",
+"g": "支持",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "FeedbackReport"
+}
+},
+{
+"m": "GET",
+"p": "/v1/support/tickets",
+"s": "The signed-in account's support tickets, newest activity first.",
+"d": "Sign-in sessions only. Every ticket the account opened (`instabox feedback`, or a post in the InstaBox Discord by the Discord account it linked), 50 at a time from `offset`. The support service answer",
+"g": "支持",
+"auth": "session",
+"params": [
+{
+"name": "offset",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/support/tickets/{id}",
+"s": "One of the account's tickets and its messages.",
+"d": "Sign-in sessions only. `404` for a ticket that is not the account's.",
+"g": "支持",
+"auth": "session",
+"params": [
+{
+"name": "id",
+"in": "path",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/support/tickets/{id}/close",
+"s": "Close one of the account's tickets.",
+"d": "Sign-in sessions only. Browser sessions need Origin and X-Instabox-CSRF.",
+"g": "支持",
+"auth": "session",
+"params": [
+{
+"name": "id",
+"in": "path",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines",
+"s": "List the sandboxes of your orgs.",
+"d": "Your sandboxes and those of the other members of your orgs (docs/orgs.md). API keys: needs one of the scopes `machines:read`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "cursor",
+"in": "query",
+"required": false
+},
+{
+"name": "limit",
+"in": "query",
+"required": false
+},
+{
+"name": "metadata",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines",
+"s": "Create a sandbox.",
+"d": "Returns a `create` operation whose `machineId` is the new sandbox. Start from a template (`templateId`) or one of your snapshots (`snapshotId`). A sandbox gets the default size (4 vCPUs, 8 GiB memory)",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateMachineRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}",
+"s": "Delete a sandbox, its system files and its storage.",
+"d": "Snapshots saved from it are kept. API keys: needs one of the scopes `machines:delete`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}",
+"s": "Get a sandbox.",
+"d": "API keys: needs one of the scopes `machines:read`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/machines/{id}",
+"s": "Rename, resize (vCPUs, memory, disk) a stopped sandbox, or set its idle pause and metadata.",
+"d": "Synchronous. Absent fields are unchanged. `autoSuspendAfterSeconds` and `metadata` apply in any state, also while an operation runs, and do not change `revision`: `metadata` replaces the metadata (`{}",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "UpdateMachineRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/access",
+"s": "Get a Terminal or VNC connection URL and short-lived admission ticket.",
+"d": "Browser sessions require CSRF as for other mutations. The response URL may use a separate access origin; API cookies stay on the API host. Offer the returned protocol and `instabox-access-token.<token",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": null,
+"props": [
+"kind",
+"requireTicket",
+"webUrl"
+]
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}/activity-leases/{leaseID}",
+"s": "Release a task's activity lease.",
+"d": "Idempotent. Records completion activity without waking the machine. No Idempotency-Key is needed. API keys: needs one of the scopes `machines:write`, `machines:exec`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PUT",
+"p": "/v1/machines/{id}/activity-leases/{leaseID}",
+"s": "Keep a task's machine awake for a bounded period.",
+"d": "Creates or renews a task lease, waking an idle-suspended machine first. Renew before expiry while working and delete when finished. Expiry starts a full idle period; an explicit lifecycle operation in",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": null,
+"props": [
+"ttlSeconds"
+]
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/connection-info",
+"s": "How to reach the sandbox over SSH. No side effects.",
+"d": "API keys: needs one of the scopes `machines:read`, `machines:ssh`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/connections",
+"s": "Issue a short-lived SSH user certificate for the sandbox.",
+"d": "The sandbox must be `running`, else `409 machine_not_running`. The certificate's principal is the sandbox ID and its key ID is the connection ID. API keys: needs one of the scopes `machines:write`, `m",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateConnectionRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/desktop",
+"s": "The state of a running machine's desktop; install or start it.",
+"d": "A graphical desktop in the machine: Xvfb, an Xfce session, Chromium and a VNC server, which GET /v1/machines/{id}/vnc reaches once it runs. Nothing runs until asked for. The agent-browser, android, he",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "DesktopRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}/desktop/stream",
+"s": "Revoke every desktop link of the machine and end their open sessions.",
+"d": "Every link minted for this machine so far stops working, and the sessions open through them end within about 3 seconds (each checks every 3 s, on any server instance), or immediately if the check can'",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/desktop/stream",
+"s": "A short-lived link to watch (or use) the machine's desktop in a browser.",
+"d": "Returns a link to the dashboard's full-screen desktop viewer, which anyone with the link can open, or embed in an iframe, without signing in. Expiry stops new connections; revoke ends open sessions: a",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "DesktopStreamRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/desktop/stream/state",
+"s": "Whether a desktop link would connect now, and if not why.",
+"d": "Unauthenticated: the link's token goes in the `X-Desktop-Token` header (not the query string). Runs the checks GET /v1/machines/{id}/vnc runs for a new connection and always answers 200 with `state`: ",
+"g": "沙箱",
+"auth": "session",
+"params": [
+{
+"name": "X-Desktop-Token",
+"in": "header",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/desktop/watch",
+"s": "The desktop's status, streamed while the caller's VNC session is open.",
+"d": "Server-sent events (`text/event-stream`) for the caller's open desktop session on the machine (GET /v1/machines/{id}/vnc): while that session is open the server runs the desktop's status every 3 s on ",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/disk",
+"s": "How full the running sandbox's disks are (/data and /), with a near-full warning.",
+"d": "Read inside the sandbox now (`df` as its user, over the same path as exec): used, available and size in bytes and the inode use of `/data` (the disk, what `PATCH /v1/machines/{id}` with `persistentDis",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/exec",
+"s": "Run a command in the sandbox and return its output.",
+"d": "Runs `cmd` with `bash -lc` as the sandbox's login user (`dev`, HOME",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "ExecRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/files",
+"s": "Read a file or directory of a running sandbox.",
+"d": "Lists a directory or returns a file of a running sandbox you own, read live the same way exec runs commands, as root (sudo; as the dev user if sudo needs a password). The response is the Files shape: ",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "path",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "PUT",
+"p": "/v1/machines/{id}/files",
+"s": "Write (upload) a file to a running sandbox.",
+"d": "Streams the raw request body into the file at `path` of a running sandbox, as the sandbox's user (like exec; no sudo). Any bytes, up to 5 GiB (5368709120 bytes; more is 413 `too_large`); there is no e",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "path",
+"in": "query",
+"required": true
+},
+{
+"name": "mode",
+"in": "query",
+"required": false
+},
+{
+"name": "parents",
+"in": "query",
+"required": false
+},
+{
+"name": "token",
+"in": "query",
+"required": false
+}
+],
+"body": {
+"ref": null
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/files/content",
+"s": "Download a file's raw bytes from a running sandbox.",
+"d": "Streams the file at `path` of a running sandbox as `application/octet-stream` with its exact `Content-Length`, any size, read as root when the sandbox's sudo allows it, as its user otherwise (like the",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "path",
+"in": "query",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/files/upload-url",
+"s": "Get a short-lived signed URL that uploads one file.",
+"d": "Returns a URL on the API's own origin that takes `PUT` of the file's raw bytes to `path` (PUT /v1/machines/{id}/files with a signed `token`) with no other credential, until `expiresAt`: by default 15 ",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateUploadURLRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/fork",
+"s": "Create a copy of a sandbox on its host, without a snapshot.",
+"d": "Creates a new sandbox with copies of a running or stopped sandbox's system files and storage (`/data`, HOME included). The node-agent clones the disks copy-on-write on the source's host (a running sou",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "ForkMachineRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/history",
+"s": "The commands run in the sandbox through exec, newest first.",
+"d": "Every `POST /v1/machines/{id}/exec` that reached the sandbox (by any",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "limit",
+"in": "query",
+"required": false
+},
+{
+"name": "cursor",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/history/{execId}",
+"s": "One past command with its stored output.",
+"d": "The command's record with `stdout` and `stderr` as stored: the first",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/images",
+"s": "Deprecated: POST /v1/machines/{id}/snapshots.",
+"d": "The old name of POST /v1/machines/{id}/snapshots; replies in the old shape (DeprecatedImage). API keys: needs one of the scopes `images:write`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateSnapshotRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/logs",
+"s": "The sandbox's console log and recent operations, to see why it did not boot or is unreachable.",
+"d": "`console` is the end of the sandbox's serial console: kernel and systemd boot messages, anything written to /dev/console, and errors from the VM monitor. It is kept on the sandbox's host across stops,",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "tail",
+"in": "query",
+"required": false
+},
+{
+"name": "after",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/metrics",
+"s": "The sandbox's recent CPU, memory, network and disk I/O, one sample per 30 seconds.",
+"d": "Samples from `since` (default: 5 minutes ago, at most 24 hours ago) to now, oldest first. One sample per 30 seconds for the times the sandbox was running in that window; none for the times it was paus",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "since",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/oom/claim",
+"s": "The OOM kill of a background job's processes (instabox jobs wait).",
+"d": "Reads the running sandbox's kernel OOM kills now and returns, as `oomKill`, the newest one whose victim was in `cgroup` (a background job's cgroup: the session scope of the exec that started it, `/use",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "OOMClaimRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/orca-connections",
+"s": "Authorize one WebSocket to the sandbox's Orca runtime.",
+"d": "Returns a single-use tunnel endpoint (valid 60 s), an assertion the",
+"g": "沙箱",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CreateOrcaConnectionRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/port-agent",
+"s": "Install instabox-port in a running sandbox and rotate its credential.",
+"d": "API keys require `machines:write`. The installed credential manages only this sandbox's public ports.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/ports",
+"s": "List a sandbox's public ports.",
+"d": "API keys require `machines:read`. Also accepts the sandbox-local port credential.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/ports",
+"s": "Give one HTTP port of a sandbox an HTTPS URL, public or private.",
+"d": "API keys require `machines:write`. Also accepts the sandbox-local port credential.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "PublishPortRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}/ports/{port}",
+"s": "Remove a port's public URL and close its active connections.",
+"d": "API keys require `machines:write`. Also accepts the sandbox-local port credential.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/processes",
+"s": "The sandbox's processes, live or as last seen.",
+"d": "On a running sandbox (or one that paused itself, which wakes as for",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "all",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/restore",
+"s": "Put a sandbox's disks back to a snapshot's, in place.",
+"d": "Replaces the sandbox's root disk and `/data` with snapshot `snapshotId`'s (absent: the snapshot the sandbox was created from, else `400`). The sandbox keeps its ID, name, hostname, public port URLs an",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "RestoreMachineRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/resume",
+"s": "Resume a paused sandbox where it left off.",
+"d": "The body is optional: `{\"vault\": false}` disables legacy Vault delivery",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "ResumeMachineRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/secrets",
+"s": "Read a sandbox's Secret selections and delivery status.",
+"d": "Org members only. API keys require `machines:read`. Metadata only; no",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/machines/{id}/secrets",
+"s": "Replace supplied Secret selections for a sandbox.",
+"d": "Org members with sandbox write access may select existing Secrets.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "UpdateMachineSecretsRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/secrets",
+"s": "Refresh managed Secret delivery in a running sandbox.",
+"d": "API keys require `machines:write`. Takes no body or Idempotency-Key.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/snapshots",
+"s": "Save a sandbox's system files and storage as a snapshot.",
+"d": "A stopped sandbox (fully saved, no operation in progress): synchronous (`201`) and quick, since no data is copied. A running sandbox, where the server allows live snapshots: `202` with the snapshot `p",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateSnapshotRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}/ssh-tokens",
+"s": "Revoke every SSH token of the sandbox and close their connections.",
+"d": "Revokes the sandbox's SSH tokens that are still valid and closes the",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/ssh-tokens",
+"s": "List SSH token metadata, including revoked and recently expired tokens.",
+"d": "A token's login is returned only as `SSHTokenInfo.host` describes. History is kept for 30 days after the token's original expiry. Effective expiry includes the issuing API key's expiry. API keys requi",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/ssh-tokens",
+"s": "Issue an SSH token, for a plain `ssh` command without a key.",
+"d": "Returns a token to use as the SSH user name:",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateSSHTokenRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/machines/{id}/ssh-tokens/{tokenID}",
+"s": "Revoke one SSH token and close its SSH and mosh connections.",
+"d": "Repeated revocation succeeds. Certificates and other tokens are unaffected. API keys require `machines:write` or `machines:ssh` (legacy).",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/start",
+"s": "Start a stopped or paused sandbox.",
+"d": "On a paused sandbox this resumes it with its running programs; if they cannot be brought back it boots fresh (`runtime.processesPreserved` false). Files are kept either way. `host` is admin-only (else",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "StartMachineRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/stop",
+"s": "Stop a running sandbox (shuts it down; running programs end, files are kept).",
+"d": "`stop` on a paused sandbox returns `409 operation_conflict` (resume it first, then stop it, or delete it). API keys: needs one of the scopes `machines:write`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "StopMachineRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/suspend",
+"s": "Pause a running sandbox, keeping its running programs.",
+"d": "The body is optional and takes no fields: `{}` or none; any key is `400 unknown_field`. API keys: needs one of the scopes `machines:write`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "SuspendMachineRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/terminal",
+"s": "Open a terminal on a running sandbox, over a WebSocket.",
+"d": "Upgrades to a WebSocket (RFC 6455; send Connection: Upgrade, Upgrade: websocket) carrying a PTY (xterm-256color) of a login shell as the dev user on a running sandbox you own. Binary messages are the ",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "cols",
+"in": "query",
+"required": false
+},
+{
+"name": "rows",
+"in": "query",
+"required": false
+},
+{
+"name": "session",
+"in": "query",
+"required": false
+},
+{
+"name": "wake",
+"in": "query",
+"required": false
+},
+{
+"name": "restart",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/usage",
+"s": "What the sandbox used over a window, for billing.",
+"d": "Running time (not paused or stopped) and its vCPU and memory seconds, and disk GiB-seconds over the time the sandbox existed. Default window: the start of the current calendar month (UTC) to now; at m",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "from",
+"in": "query",
+"required": false
+},
+{
+"name": "to",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/vault",
+"s": "What the Vault writes into this machine (docs/vault.md).",
+"d": "Whether the machine takes the Vault, the items that apply to it with",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/vault",
+"s": "Write the current Vault items into the running machine now.",
+"d": "The same write as after a boot or resume, synchronously: the items",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/machines/{id}/vnc",
+"s": "The desktop of a running machine, over VNC in a WebSocket.",
+"d": "Upgrades to a WebSocket (RFC 6455) carrying the VNC (RFB) stream of the machine's desktop: binary messages in both directions, as noVNC speaks. The VNC server listens on the machine's loopback only an",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/machines/{id}/wake",
+"s": "Resume an idle-suspended machine before using it.",
+"d": "Records activity on a running machine, or waits up to 45 seconds for an idle suspend and its resume to finish. Concurrent callers share the operation. A manual stop/suspend or archive is not undone. N",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "WakeMachineRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/templates",
+"s": "List the templates a sandbox can start from.",
+"d": "API keys: needs one of the scopes `machines:read`, `images:read`.",
+"g": "沙箱",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/usage/machines",
+"s": "Compute use and price by sandbox over a window, deleted sandboxes included.",
+"d": "The compute (vCPU and memory) each of the org's sandboxes used in `[from, to)`, as the hourly rating counts it: every live sandbox, and every deleted one that ran in the window (`deletedAt` set). The ",
+"g": "沙箱",
+"auth": "apikey",
+"params": [
+{
+"name": "org",
+"in": "query",
+"required": false
+},
+{
+"name": "from",
+"in": "query",
+"required": false
+},
+{
+"name": "to",
+"in": "query",
+"required": false
+},
+{
+"name": "sort",
+"in": "query",
+"required": false
+},
+{
+"name": "order",
+"in": "query",
+"required": false
+},
+{
+"name": "limit",
+"in": "query",
+"required": false
+},
+{
+"name": "offset",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/usage",
+"s": "Your storage use, limits, this month's cost and credit balance.",
+"d": "Your personal org's sandbox and snapshot counts, the stored data they take up, and its limits (free: 1 sandbox, 5 snapshots, 200 GiB of stored data by default); with a workspace's API key, that worksp",
+"g": "用量",
+"auth": "apikey",
+"params": [
+{
+"name": "org",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/ports",
+"s": "List the public ports of all your sandboxes.",
+"d": "API keys require `machines:read`. Deleted sandboxes' ports are not listed.",
+"g": "端口",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/github/webhook",
+"s": "The instabox GitHub App's webhook endpoint (not for clients).",
+"d": "Verified by the `X-Hub-Signature-256` header against server.json `githubApp.webhookSecretFile`. `installation` and `installation_target` events record the App's installs (created, renamed, suspended, ",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/org-invites/redeem",
+"s": "Join an org with an invite code. Signed-in sessions only.",
+"d": "An unknown, used, revoked or expired code is `400 bad_request`; an invite emailed to another address than the account's is `403 invite_email_mismatch`; already being a member is `409 operation_conflic",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "RedeemOrgInviteRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/orgs",
+"s": "The orgs you belong to, your personal org first.",
+"d": "Every account has one personal org, made when it signed up, on any tier but never shared; the others are workspaces, also on any tier (docs/orgs.md). Each lists the sizes you may create in it (`allowe",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs",
+"s": "Buy a workspace through Stripe Checkout. Signed-in sessions only.",
+"d": "Starts a Checkout Session for a workspace named `name` on `tier`, `pro` or `team` (a new workspace is never on `free`: `400`): it pays the plan, billed on the 1st of each month (UTC), the first charge",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CreateOrgRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}",
+"s": "Delete a workspace. The owner, naming it; signed-in sessions only.",
+"d": "What the workspace owes is paid first, with its card on file: its open invoices, then, once its plan has ended at once (the rest of the month is not refunded), the final invoice for its usage beyond t",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "DeleteOrgRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}",
+"s": "An org you belong to, with its limits and this month's usage.",
+"d": "`usage` is the org's usage this calendar month (UTC) as the hourly rating priced it at the server's prices: running time by sandbox size, the allocated disk of each paid sandbox and egress beyond the ",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/orgs/{id}",
+"s": "Rename an org. The owner and admins.",
+"d": "Writes `org.rename` to the audit log. The workspace's own API key: `workspace:admin`.",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "UpdateOrgRequest"
+}
+},
+{
+"m": "PATCH",
+"p": "/v1/orgs/{id}/billing",
+"s": "Set a paid org's spend cap. The owner and admins; signed-in sessions only.",
+"d": "`spendCapUSD` caps this month's usage beyond the org's allowance: once reached, the org's sandboxes are stopped (`trigger: spend_cap`) and cannot run until next month (UTC), a higher cap or no cap (`4",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "UpdateOrgBillingRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/billing/checkout",
+"s": "Put an org on a paid plan, its credits first and a card for the rest. The owner; signed-in sessions only.",
+"d": "A free org upgrading to `pro` or `team` (it keeps its sandboxes and members), or an org whose plan ended (`tier` absent: its own). A free workspace with no `tier` saves a card instead: a Checkout Sess",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CheckoutRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/billing/credits/subscribe",
+"s": "Put an org on a paid plan paid from its credits. The owner; signed-in sessions only.",
+"d": "Credits an admin granted (docs/pricing.md, \"Credits\") pay the plan: the rest of this month now (prorated to the second, like Stripe), then each month on the 1st, after last month's usage beyond the al",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "SubscribeWithCreditsRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/billing/plan",
+"s": "Move a subscribed org between the paid plans. The owner; signed-in sessions only.",
+"d": "Up (`pro` to `team`): at once, charging the prorated difference for the rest of the month, which also grows the month's allowance; if that charge does not succeed the plan is unchanged (`402 payment_f",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "ChangePlanRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/billing/portal",
+"s": "Open the Stripe customer portal (invoices, the card). The owner and admins; signed-in sessions only.",
+"d": "",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/billing/subscription",
+"s": "End the org's subscription at the end of the current period. The owner; signed-in sessions only.",
+"d": "The plan stays until `billing.periodEnd`. Then a personal org returns to the free tier (members removed; sandboxes over the free tier's count or size suspended), any other org becomes unusable (`disab",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/billing/subscription/resume",
+"s": "Take back a cancellation before the period ends. The owner; signed-in sessions only.",
+"d": "",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/exports",
+"s": "List what you can export from a workspace.",
+"d": "API keys: `machines:write` (or the legacy `machines:exec`), a key of this org (a workspace key is its admin). The owner and admins see every sandbox with a saved disk and every snapshot that saved `/d",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/exports",
+"s": "Export a sandbox's or a snapshot's /data.",
+"d": "API keys: `machines:write` (or the legacy `machines:exec`), a key of this org (a workspace key is its admin).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateExportRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/github/installations",
+"s": "The instabox GitHub App installs linked to an org. The owner and admins; signed-in sessions only.",
+"d": "",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/github/installations/{installationId}",
+"s": "Unlink an install of the GitHub App from an org; its jobs then start no boxes. The App stays installed on GitHub, so Con",
+"d": "",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/github/jobs",
+"s": "The org's GitHub Actions jobs run in CI boxes, with why a job waits or did not start.",
+"d": "Newest first, a page at a time (by default the latest 50 of every state); `hasMore` says more of the `state` group asked for follow, and `counts` has every group's total. A job's `state`: `waiting` (o",
+"g": "组织",
+"auth": "session",
+"params": [
+{
+"name": "state",
+"in": "query",
+"required": false
+},
+{
+"name": "limit",
+"in": "query",
+"required": false
+},
+{
+"name": "from",
+"in": "query",
+"required": false
+},
+{
+"name": "to",
+"in": "query",
+"required": false
+},
+{
+"name": "offset",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/github/jobs/{job}",
+"s": "One of the org's GitHub Actions jobs, with where its wait went and its branch, commit and failed step.",
+"d": "The job, when its own CI box was created and started running, the machine of its size, and from GitHub its run's branch and commit and the first step that failed (left out when GitHub does not answer)",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/github/stats",
+"s": "The org's GitHub Actions jobs of the last 7 days, today included, or of a time range, for the CI page.",
+"d": "How many jobs were queued, ran to their end on a CI box and passed; how long they waited from queued to a runner taking them (median and p90, and the median of each part of the wait); each day's jobs,",
+"g": "组织",
+"auth": "session",
+"params": [
+{
+"name": "tz",
+"in": "query",
+"required": false
+},
+{
+"name": "from",
+"in": "query",
+"required": false
+},
+{
+"name": "to",
+"in": "query",
+"required": false
+},
+{
+"name": "step",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/invite-code",
+"s": "A paid org's invite code for people outside it. The owner and admins.",
+"d": "A user invite code (docs/invites.md, \"A paid workspace's code\") that lets people past the invite gate into accounts of their own: they do not join the workspace. It is made on the first call while the",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/invite-code/regenerate",
+"s": "Replace a paid workspace's invite code. The owner and admins.",
+"d": "For a leaked code: the live code is revoked at once and a new one gets the uses it had left, so the workspace's total stays the same (docs/invites.md, \"A paid workspace's code\"). `409 operation_confli",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/invites",
+"s": "An org's invites, newest first. The owner and admins.",
+"d": "The workspace's own API key: `workspace:admin`.",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/invites",
+"s": "Email an invite to join the org. The owner and admins.",
+"d": "Emails `email` a link that joins the org (`/dashboard/invitations/accept`); only an account with that email can redeem it, and it expires in 7 days. A personal org takes no members (`400 bad_request`)",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateOrgInviteRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/invites/{inviteId}",
+"s": "Revoke an unredeemed invite. The owner and admins.",
+"d": "The workspace's own API key: `workspace:admin`.",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/invites/{inviteId}/resend",
+"s": "Email an open invite again. The owner and admins.",
+"d": "Revokes the invite and emails a new one, valid for 7 days, to the same address from the caller; the old link stops working only once the new email is out. An invite that is not open, or has no email (",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/members",
+"s": "The members of an org you belong to, the owner first.",
+"d": "Every member uses the org's sandboxes; the owner and admins manage members and invites; the owner never changes. API keys: any scope.",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/members/{userId}",
+"s": "Remove a member, or leave (your own user ID).",
+"d": "The owner and admins remove members; any member but the owner may leave. The owner cannot leave or be removed (`409 operation_conflict`). The SSH certificates and tokens the member made for the org's ",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/orgs/{id}/members/{userId}",
+"s": "Change a member's role. The owner and admins.",
+"d": "Between `admin` and `member`. An org's owner never changes: changing the owner's role is `409 operation_conflict`. Writes `org.member.role` to the audit log. The workspace's own API key: `workspace:ad",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "UpdateOrgMemberRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/webhooks",
+"s": "List an org's webhook endpoints.",
+"d": "API keys: `machines:read`, a key of this org (a workspace key is its admin). The org's owner or admin only. 404 while the server has webhooks off (`Me.webhooksEnabled`).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/webhooks",
+"s": "Register a webhook endpoint.",
+"d": "API keys: `machines:write`, a key of this org (a workspace key is its admin).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "CreateWebhookRequest"
+}
+},
+{
+"m": "DELETE",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}",
+"s": "Delete a webhook endpoint with its pending deliveries and delivery log.",
+"d": "API keys: `machines:delete`, a key of this org (a workspace key is its admin).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}",
+"s": "Get a webhook endpoint.",
+"d": "API keys: `machines:read`, a key of this org (a workspace key is its admin).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "PATCH",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}",
+"s": "Change a webhook endpoint.",
+"d": "API keys: `machines:write`, a key of this org (a workspace key is its admin). Absent fields are kept; `events` replaces the event types. Enabling an endpoint the server disabled (`disabledReason` fail",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": {
+"ref": "UpdateWebhookRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}/deliveries",
+"s": "List an endpoint's deliveries, newest first, with their attempts.",
+"d": "API keys: `machines:read`, a key of this org (a workspace key is its admin). Deliveries are kept 30 days.",
+"g": "组织",
+"auth": "apikey",
+"params": [
+{
+"name": "limit",
+"in": "query",
+"required": false
+},
+{
+"name": "cursor",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}/deliveries/{deliveryId}/retry",
+"s": "Send a finished (succeeded or failed) delivery once more.",
+"d": "API keys: `machines:write`, a key of this org (a workspace key is its admin). 409 operation_conflict when the delivery is still pending, or once its event is too old to retry (see WebhookDelivery.retr",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}/rotate",
+"s": "Give an endpoint a new signing secret.",
+"d": "API keys: `machines:write`, a key of this org (a workspace key is its admin). The response carries the new secret. The previous one also signs requests for 24 hours (`webhook-signature` then lists two",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/orgs/{id}/webhooks/{webhookId}/test",
+"s": "Queue a `webhook.test` event to an enabled endpoint.",
+"d": "API keys: `machines:write`, a key of this org (a workspace key is its admin).",
+"g": "组织",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/stripe/webhook",
+"s": "Stripe's webhook endpoint (not for clients).",
+"d": "Verified by the `Stripe-Signature` header against server.json `stripe.webhookSecretFile`. Handles `checkout.session.completed`, `invoice.created`, `invoice.paid`, `invoice.payment_failed`, `customer.s",
+"g": "组织",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/cli/start",
+"s": "Native client (loopback) sign-in; open in the user's browser.",
+"d": "RFC 8252 loopback flow for CLIs and desktop apps. The client listens on",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "invite",
+"in": "query",
+"required": false
+},
+{
+"name": "provider",
+"in": "query",
+"required": false
+},
+{
+"name": "redirect_uri",
+"in": "query",
+"required": true
+},
+{
+"name": "state",
+"in": "query",
+"required": true
+},
+{
+"name": "code_challenge",
+"in": "query",
+"required": true
+},
+{
+"name": "code_challenge_method",
+"in": "query",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/github/callback",
+"s": "GitHub web flow callback; sets the `instabox_session` cookie and redirects to `/`, or for a native client sign-in redire",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "code",
+"in": "query",
+"required": false
+},
+{
+"name": "state",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/github/login",
+"s": "Browser sign-in; redirects to GitHub (web flow with state and PKCE S256), through Better Auth, or to WorkOS's sign-in pa",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "cli_request",
+"in": "query",
+"required": false
+},
+{
+"name": "origin",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/google/callback",
+"s": "Google OAuth callback.",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/google/complete",
+"s": "Exchange the verified identity for an Instabox session or CLI code.",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/google/login",
+"s": "Start Google sign-in through Better Auth, or open WorkOS's sign-in page when WorkOS is the default (docs/workos.md).",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "cli_request",
+"in": "query",
+"required": false
+},
+{
+"name": "origin",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/providers",
+"s": "List configured sign-in providers.",
+"d": "",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/workos/callback",
+"s": "WorkOS callback; sets the `instabox_session` cookie, or for a native client sign-in redirects to its loopback URI.",
+"d": "Only with server.json `workos` (docs/workos.md); 404 otherwise. The state",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "code",
+"in": "query",
+"required": false
+},
+{
+"name": "state",
+"in": "query",
+"required": false
+},
+{
+"name": "error",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "GET",
+"p": "/auth/workos/login",
+"s": "Open WorkOS's hosted sign-in page, where the person picks GitHub or Google (docs/workos.md).",
+"d": "The dashboard's one sign-in button when WorkOS is the default (`GET",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "admin",
+"in": "query",
+"required": false
+},
+{
+"name": "cli_request",
+"in": "query",
+"required": false
+},
+{
+"name": "origin",
+"in": "query",
+"required": false
+},
+{
+"name": "invite",
+"in": "query",
+"required": false
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/auth/agent",
+"s": "Register an agent that has no browser and no person at the keyboard (docs/agent-auth.md).",
+"d": "The body is optional. The reply holds a `claimToken` (`ibg_...`), the agent's",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "AgentRegisterRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/auth/agent/claim",
+"s": "What an agent registration asks for, by its user code, for the signed-in person to check before approving.",
+"d": "Requires a sign-in session past the invite gate. `code` is the user code the",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "code",
+"in": "query",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/auth/agent/claim",
+"s": "Approve or deny an agent registration as the signed-in person.",
+"d": "Requires a sign-in session past the invite gate (an API key gets",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "AgentClaimRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/auth/agent/token",
+"s": "Poll for the API key of an agent registration.",
+"d": "Like the device flow's poll: `400 authorization_pending` until the person",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "AgentTokenRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/auth/cli/authorize",
+"s": "Approve or deny CLI access as the displayed browser account.",
+"d": "Requires the browser session cookie, its `X-Instabox-CSRF` token and a",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": null,
+"props": [
+"decision",
+"request",
+"userId"
+]
+}
+},
+{
+"m": "GET",
+"p": "/v1/auth/cli/request",
+"s": "Validate a pending CLI sign-in request for account confirmation.",
+"d": "Requires a sign-in session. Returns the validated loopback destination and expiry without issuing a code. Requests expire after 10 minutes.",
+"g": "认证",
+"auth": "session",
+"params": [
+{
+"name": "request",
+"in": "query",
+"required": true
+}
+],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/auth/cli/token",
+"s": "Exchange a native client sign-in code for tokens.",
+"d": "Second half of the loopback sign-in (RFC 8252, see `GET /auth/cli/start`).",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "CLITokenRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/auth/device",
+"s": "Start a device login (WorkOS CLI Auth when WorkOS is the default, docs/workos.md, else the GitHub device flow, through i",
+"d": "The body is optional. New users are registered automatically.",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "DeviceStartRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/auth/device/token",
+"s": "Poll for the tokens of a device login.",
+"d": "Returns `400` with code `authorization_pending` until the user approves,",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "DeviceTokenRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/auth/logout",
+"s": "Revoke the presented access token and its refresh token.",
+"d": "With the session cookie, revokes the browser session and clears the cookie.",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "POST",
+"p": "/v1/auth/refresh",
+"s": "Exchange a refresh token for new tokens.",
+"d": "The refresh token rotates; the old one stops working. Store the new pair.",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "RefreshRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/invites/redeem",
+"s": "Activate the signed-in account with an invite code.",
+"d": "Open to accounts that have not passed the invite gate yet (like `GET /v1/me` and logout). Codes are 6 uppercase letters and digits (`K7R2QX`); older 6-digit codes (`482913`) and codes from before 2026",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "RedeemInviteRequest"
+}
+},
+{
+"m": "GET",
+"p": "/v1/me",
+"s": "The signed-in user and the sandbox size they get.",
+"d": "\"API keys: any key.\" Not behind the invite gate: `inviteRequired` and `activated` tell a client whether the account must redeem an invite code (`POST /v1/invites/redeem`) before the other routes answe",
+"g": "认证",
+"auth": "apikey",
+"params": [],
+"body": null
+},
+{
+"m": "DELETE",
+"p": "/v1/me/discord",
+"s": "Unlink the signed-in account's Discord account.",
+"d": "Sign-in sessions only. Browser sessions need Origin and X-Instabox-CSRF. No Idempotency-Key: a second call answers `404`.",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "GET",
+"p": "/v1/me/discord",
+"s": "The Discord account linked to the signed-in account.",
+"d": "Sign-in sessions only. `configured` says whether this server links Discord accounts. A browser links one by opening `/auth/discord/link`, which authorizes the Discord account at Discord (scope `identi",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": null
+},
+{
+"m": "PUT",
+"p": "/v1/me/terms",
+"s": "Record that the signed-in user agreed to a version of the rules of the road.",
+"d": "Sign-in sessions only. The dashboard shows the Terms of Service's acceptable-use rules to an account whose `termsVersion` (`GET /v1/me`) is not the version it shows, and sends that version here when t",
+"g": "认证",
+"auth": "session",
+"params": [],
+"body": {
+"ref": "AcceptTermsRequest"
+}
+},
+{
+"m": "POST",
+"p": "/v1/support/tickets/{id}/messages",
+"s": "Answer one of the account's open tickets.",
+"d": "Sign-in sessions only. Browser sessions need Origin and X-Instabox-CSRF. `409` once the ticket is resolved or closed; `429` past 20 replies an hour.",
+"g": "账户",
+"auth": "session",
+"params": [
+{
+"name": "id",
+"in": "path",
+"required": true
+}
+],
+"body": {
+"ref": null,
+"props": [
+"body"
+]
+}
+}
+],
+"bodySchemas": {
+"CreateAPIKeyRequest": {
+"name": "string",
+"scopes": "array<APIKeyScope>",
+"expiresInDays": "integer"
+},
+"CreateWorkspaceAPIKeyRequest": {
+"name": "string",
+"scopes": "array<string>",
+"expiresInDays": "integer"
+},
+"ImportSecretsRequest": {
+"values": "object",
+"delivery": "SecretDelivery",
+"hosts": "SecretHosts"
+},
+"PutSecretRequest": {
+"value": "SecretValue",
+"delivery": "SecretDelivery",
+"hosts": "SecretHosts"
+},
+"UpdateVaultItemRequest": {
+"selector": "object"
+},
+"PutVaultItemRequest": {
+"kind": "string env|file",
+"path": "string",
+"value": "string",
+"selector": "object"
+},
+"FeedbackReport": {
+"type": "string bug|feature-request|friction|other",
+"component": "string cli|api|sandbox|dashboard|skills|docs|other",
+"severity": "string blocker|major|minor",
+"title": "string",
+"detail": "string",
+"area": "string",
+"command": "string",
+"error": "string",
+"expected": "string",
+"workaround": "string",
+"doc_ref": "string",
+"sandbox": "string",
+"client_version": "string",
+"os": "string"
+},
+"CreateMachineRequest": {
+"name": "string",
+"templateId": "string",
+"templateVersion": "string",
+"snapshotId": "string",
+"imageId": "string",
+"vcpus": "integer",
+"memMiB": "integer",
+"persistentDiskGiB": "integer",
+"rootDiskGiB": "integer",
+"desiredState": "string running|stopped",
+"metadata": "Metadata",
+"archiveSeconds": "integer",
+"deleteAfterSeconds": "integer",
+"maxRunMinutes": "MaxRunMinutes",
+"autoSuspendAfterSeconds": "AutoSuspendAfterSeconds",
+"vault": "boolean",
+"secrets": "SecretSelection",
+"envSecrets": "array<SecretName>",
+"directSecrets": "array<DirectSecret>",
+"env": "object",
+"pool": "string",
+"guestUser": "string",
+"failFast": "boolean",
+"orgId": "string"
+},
+"UpdateMachineRequest": {
+"maxRunMinutes": "MaxRunMinutes",
+"name": "string",
+"rootDiskGiB": "integer",
+"vcpus": "integer",
+"memMiB": "integer",
+"persistentDiskGiB": "integer",
+"metadata": [
+"object",
+"null"
+],
+"autoSuspendAfterSeconds": "integer",
+"vault": "boolean",
+"apply": "string restart"
+},
+"CreateConnectionRequest": {
+"publicKey": "string",
+"ttlSeconds": "integer"
+},
+"DesktopRequest": {
+"action": "string status|install|start|takeover|handback",
+"width": "integer",
+"height": "integer"
+},
+"DesktopStreamRequest": {
+"viewOnly": "boolean",
+"ttlSeconds": "integer"
+},
+"ExecRequest": {
+"cmd": "string",
+"argv": "array<string>",
+"cwd": "string",
+"envs": "object",
+"secretEnvs": "object",
+"timeoutSeconds": "integer",
+"stdin": "string",
+"noHistory": "boolean",
+"historyCommand": "string"
+},
+"CreateUploadURLRequest": {
+"path": "string",
+"mode": "string",
+"parents": "boolean",
+"expiresInSeconds": "integer"
+},
+"ForkMachineRequest": {
+"name": "string",
+"vcpus": "integer",
+"memMiB": "integer",
+"metadata": "object",
+"deleteAfterSeconds": "integer",
+"autoSuspendAfterSeconds": "integer",
+"maxRunMinutes": "integer",
+"secrets": "SecretSelection",
+"envSecrets": "array<SecretName>",
+"directSecrets": "array<DirectSecret>"
+},
+"CreateSnapshotRequest": {
+"name": "string",
+"description": "string",
+"rootOnly": "boolean",
+"forFork": "boolean"
+},
+"OOMClaimRequest": {
+"cgroup": "string",
+"bootId": "string"
+},
+"CreateOrcaConnectionRequest": {
+"scope": "string runtime|mobile"
+},
+"PublishPortRequest": {
+"port": "integer",
+"name": "string",
+"protocol": "string http|tcp",
+"access": "string public|private",
+"rotateToken": "boolean"
+},
+"RestoreMachineRequest": {
+"snapshotId": "string",
+"desiredState": "string running|stopped",
+"timeoutSeconds": "integer"
+},
+"ResumeMachineRequest": {
+"vault": "boolean"
+},
+"UpdateMachineSecretsRequest": {
+"secrets": "SecretSelection",
+"envSecrets": "array<SecretName>",
+"directSecrets": "array<DirectSecret>"
+},
+"CreateSSHTokenRequest": {
+"name": "string",
+"ttlSeconds": "integer",
+"noExpiry": "boolean"
+},
+"StartMachineRequest": {
+"host": "string",
+"vault": "boolean",
+"vcpus": "integer",
+"memMiB": "integer"
+},
+"StopMachineRequest": {
+"timeoutSeconds": "integer"
+},
+"SuspendMachineRequest": {},
+"WakeMachineRequest": {},
+"RedeemOrgInviteRequest": {
+"code": "string"
+},
+"CreateOrgRequest": {
+"name": "string",
+"tier": "string pro|builder|team"
+},
+"DeleteOrgRequest": {
+"name": "string"
+},
+"UpdateOrgRequest": {
+"name": "string"
+},
+"UpdateOrgBillingRequest": {
+"spendCapUSD": "number",
+"usageAlertPercent": "integer",
+"overageAlert": "boolean"
+},
+"CheckoutRequest": {
+"tier": "string pro|builder|team"
+},
+"SubscribeWithCreditsRequest": {
+"tier": "string pro|builder|team"
+},
+"ChangePlanRequest": {
+"tier": "string pro|builder|team"
+},
+"CreateExportRequest": {
+"machineId": "string",
+"snapshotId": "string"
+},
+"CreateOrgInviteRequest": {
+"email": "string",
+"role": "string admin|member"
+},
+"UpdateOrgMemberRequest": {
+"role": "string admin|member"
+},
+"CreateWebhookRequest": {
+"url": "string",
+"description": "string",
+"events": "array<WebhookEventType>",
+"enabled": "boolean"
+},
+"UpdateWebhookRequest": {
+"url": "string",
+"description": "string",
+"events": "array<WebhookEventType>",
+"enabled": "boolean"
+},
+"AgentRegisterRequest": {
+"name": "string",
+"email": "string",
+"scopes": "array<APIKeyScope>",
+"expiresInDays": "integer"
+},
+"AgentClaimRequest": {
+"code": "string",
+"decision": "string approve|deny",
+"userId": "integer",
+"scopes": "array<APIKeyScope>",
+"expiresInDays": "integer"
+},
+"AgentTokenRequest": {
+"claimToken": "string",
+"ack": "boolean"
+},
+"CLITokenRequest": {
+"code": "string",
+"codeVerifier": "string",
+"redirectUri": "string"
+},
+"DeviceStartRequest": {
+"invite": "string",
+"provider": "string github|google|workos"
+},
+"DeviceTokenRequest": {
+"deviceCode": "string"
+},
+"RefreshRequest": {
+"refreshToken": "string"
+},
+"RedeemInviteRequest": {
+"code": "string"
+},
+"AcceptTermsRequest": {
+"version": "string"
+}
+}
+}
