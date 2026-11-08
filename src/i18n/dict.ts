@@ -296,6 +296,35 @@ export const dict = {
     'notify.title': '通知', 'notify.empty': '暂无事件', 'notify.clear': '清空',
     'notify.enable': '开启浏览器通知', 'notify.stateChange': '沙箱 {n}：{from} → {to}',
     'notify.err': '沙箱 {n} 出现错误', 'notify.markRead': '全部已读',
+    // ---------- 跨账号看板 ----------
+    'mx.title': '跨账号看板', 'mx.desc': '本地保存的每个账号 Key 并行拉取各自沙箱，一屏总览与快捷操作（不切换当前登录）。',
+    'mx.accounts': '账号数', 'mx.updatedAt': '刷新于', 'mx.noAccounts1': '还没有保存多个账号——点顶栏「账号管理」添加',
+    'mx.noAccounts2': '，即可在此统一查看。', 'mx.noMachines': '该账号暂无沙箱', 'mx.account': '账号',
+    // ---------- Cron ----------
+    'tab.cron': 'Cron', 'cron.title': '定时任务（crontab）', 'cron.tableMode': '表格', 'cron.rawMode': '原始',
+    'cron.addRow': '添加任务', 'cron.empty': '没有定时任务', 'cron.disable': '禁用（写入为注释）',
+    'cron.commentPh': '备注', 'cron.hint': '保存即写入沙箱 crontab（执行 crontab -）。任务在沙箱运行时才执行；暂停/停止期间不运行。',
+    'cron.saved': 'crontab 已保存', 'cron.rawHint': '直接编辑 crontab 文本，保存写入', 'cron.reboot': '每次启动时',
+    'cron.hourly': '每小时', 'cron.daily': '每天', 'cron.weekly': '每周', 'cron.monthly': '每月',
+    'cron.everyNMin': '每 {n} 分钟', 'cron.everyMin': '每分钟', 'cron.everyHourAt': '每小时第 {m} 分',
+    'cron.atTime': '每天 {h}:{m}',
+    'cron.missing': '沙箱内未安装 cron（agent-browser 等模板默认不带）。点击下方按钮安装并启动 cron 服务（通过免密 sudo），完成后即可编辑定时任务。',
+    'cron.installBtn': '安装 cron 服务', 'cron.installing': '正在安装 cron（下载依赖，可能需要 1-2 分钟）…',
+    'cron.installed': 'cron 安装并启动成功', 'cron.installFail': '安装失败',
+    // ---------- Android ----------
+    'tab.android': 'Android', 'android.notAndroid': '本面板仅对 android 模板的沙箱可用（当前模板：{tpl}）。',
+    'android.devices': 'adb 设备', 'android.screenshot': '截图', 'android.installApk': '安装 APK',
+    'android.installing': '正在安装 {n}…', 'android.installed': '安装成功：{n}', 'android.launch': '启动应用（包名）',
+    'android.logcatHint': '点击「执行」拉取 logcat 尾部日志',
+    // ---------- MCP ----------
+    'mcp.title': 'MCP 配置生成器', 'mcp.desc': '把 InstaBox 托管 MCP 服务器接入你的编码客户端（Claude Code / Cursor / Codex / OpenCode），让代理直接管理你的沙箱。',
+    'mcp.claude': 'Claude Code', 'mcp.cursor': 'Cursor', 'mcp.codex': 'Codex', 'mcp.opencode': 'OpenCode',
+    'mcp.includeDocs': '附加免登录文档服务器（instabox-docs）',
+    'mcp.inline': '内联 API Key（写入配置文件，否则引用环境变量）',
+    'mcp.inlineHint': '内联会把真实 Key 写进配置文件——仅推荐私人机器使用，且勿提交到 git',
+    'mcp.configPath': '配置文件', 'mcp.envNote': ' 需先在环境变量中设置',
+    'mcp.cliTitle': 'CLI 方式（自动写入）', 'mcp.scopeNote': 'MCP 工具调用遵循 API Key 的 scopes 与配额限制。',
+
     // ---------- 状态 ----------
     'state.running': '运行中', 'state.starting': '启动中', 'state.creating': '创建中', 'state.resuming': '恢复中',
     'state.stopping': '停止中', 'state.suspending': '暂停中', 'state.stopped': '已停止', 'state.suspended': '已暂停',
@@ -613,6 +642,35 @@ export const dict = {
     'notify.title': 'Notifications', 'notify.empty': 'No events', 'notify.clear': 'Clear',
     'notify.enable': 'Enable browser notifications', 'notify.stateChange': 'Sandbox {n}: {from} → {to}',
     'notify.err': 'Sandbox {n} hit an error', 'notify.markRead': 'Mark all read',
+    // ---------- matrix ----------
+    'mx.title': 'Cross-account board', 'mx.desc': "Pulls each locally saved account's sandboxes in parallel for a one-screen overview with quick actions (does not switch your current login).",
+    'mx.accounts': 'Accounts', 'mx.updatedAt': 'refreshed', 'mx.noAccounts1': 'No extra accounts saved yet — use "Accounts" in the top bar to add',
+    'mx.noAccounts2': ', then view everything here.', 'mx.noMachines': 'No sandboxes for this account', 'mx.account': 'account',
+    // ---------- cron ----------
+    'tab.cron': 'Cron', 'cron.title': 'Scheduled tasks (crontab)', 'cron.tableMode': 'Table', 'cron.rawMode': 'Raw',
+    'cron.addRow': 'Add task', 'cron.empty': 'No scheduled tasks', 'cron.disable': 'Disabled (written as a comment)',
+    'cron.commentPh': 'note', 'cron.hint': 'Saving writes the sandbox crontab (runs `crontab -`). Tasks only run while the sandbox is running; they do not run while paused/stopped.',
+    'cron.saved': 'crontab saved', 'cron.rawHint': 'Edit the crontab text directly and save to write it', 'cron.reboot': 'At every boot',
+    'cron.hourly': 'Hourly', 'cron.daily': 'Daily', 'cron.weekly': 'Weekly', 'cron.monthly': 'Monthly',
+    'cron.everyNMin': 'Every {n} min', 'cron.everyMin': 'Every minute', 'cron.everyHourAt': 'Hourly at :{m}',
+    'cron.atTime': 'Daily {h}:{m}',
+    'cron.missing': 'cron is not installed in this sandbox (agent-browser and most templates ship without it). Click below to install and start the cron service via passwordless sudo, then edit tasks here.',
+    'cron.installBtn': 'Install cron', 'cron.installing': 'Installing cron (downloading packages, 1-2 minutes)…',
+    'cron.installed': 'cron installed and started', 'cron.installFail': 'Install failed',
+    // ---------- android ----------
+    'tab.android': 'Android', 'android.notAndroid': 'This panel is only available for android-template sandboxes (current template: {tpl}).',
+    'android.devices': 'adb devices', 'android.screenshot': 'Screenshot', 'android.installApk': 'Install APK',
+    'android.installing': 'Installing {n}…', 'android.installed': 'Installed: {n}', 'android.launch': 'Launch app (package)',
+    'android.logcatHint': 'Click Run to pull the tail of logcat',
+    // ---------- mcp ----------
+    'mcp.title': 'MCP config generator', 'mcp.desc': 'Wire the hosted InstaBox MCP server into your coding client (Claude Code / Cursor / Codex / OpenCode) so your agent can manage sandboxes directly.',
+    'mcp.claude': 'Claude Code', 'mcp.cursor': 'Cursor', 'mcp.codex': 'Codex', 'mcp.opencode': 'OpenCode',
+    'mcp.includeDocs': 'Include the keyless docs server (instabox-docs)',
+    'mcp.inline': 'Inline the API key (written into the config file; otherwise references an env var)',
+    'mcp.inlineHint': 'Inlining writes the real key into the config file — private machines only, and never commit it',
+    'mcp.configPath': 'Config file', 'mcp.envNote': ' must be set in the environment',
+    'mcp.cliTitle': 'CLI way (writes it for you)', 'mcp.scopeNote': "MCP tool calls follow the API key's scopes and quotas.",
+
     // ---------- states ----------
     'state.running': 'running', 'state.starting': 'starting', 'state.creating': 'creating', 'state.resuming': 'resuming',
     'state.stopping': 'stopping', 'state.suspending': 'pausing', 'state.stopped': 'stopped', 'state.suspended': 'paused',

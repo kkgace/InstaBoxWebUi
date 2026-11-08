@@ -26,35 +26,36 @@ export interface CreateMachineBody {
 }
 
 export const machinesApi = {
-  list: (q?: { cursor?: string; limit?: number; metadata?: string }) =>
-    api<{ machines: Machine[]; nextCursor?: string }>('GET', 'v1/machines', { query: q }),
+  list: (q?: { cursor?: string; limit?: number; metadata?: string }, opts?: { overrideKey?: string }) =>
+    api<{ machines: Machine[]; nextCursor?: string }>('GET', 'v1/machines', { query: q, ...opts }),
 
-  get: (id: string) => api<Machine>('GET', `v1/machines/${id}`),
+  get: (id: string, opts?: { overrideKey?: string }) =>
+    api<Machine>('GET', `v1/machines/${id}`, opts),
 
-  create: (body: CreateMachineBody) =>
+  create: (body: CreateMachineBody, opts?: { overrideKey?: string }) =>
     api<{ operationId: string; machineId?: string }>('POST', 'v1/machines', {
-      body, headers: { 'Idempotency-Key': uuid() },
+      body, headers: { 'Idempotency-Key': uuid() }, ...opts,
     }),
 
-  update: (id: string, body: Partial<CreateMachineBody> & { persistentDiskGiB?: number; apply?: 'restart' }) =>
-    api<Machine>('PATCH', `v1/machines/${id}`, { body }),
+  update: (id: string, body: Partial<CreateMachineBody> & { persistentDiskGiB?: number; apply?: 'restart' }, opts?: { overrideKey?: string }) =>
+    api<Machine>('PATCH', `v1/machines/${id}`, { body, ...opts }),
 
-  delete: (id: string) =>
+  delete: (id: string, opts?: { overrideKey?: string }) =>
     api<{ operationId?: string }>('DELETE', `v1/machines/${id}`, {
-      headers: { 'X-Confirm-Delete': id },
+      headers: { 'X-Confirm-Delete': id }, ...opts,
     }),
 
-  start: (id: string, body: { vcpus?: number; memMiB?: number } = {}) =>
-    api<{ operationId: string }>('POST', `v1/machines/${id}/start`, { body }),
+  start: (id: string, body: { vcpus?: number; memMiB?: number } = {}, opts?: { overrideKey?: string }) =>
+    api<{ operationId: string }>('POST', `v1/machines/${id}/start`, { body, ...opts }),
 
-  stop: (id: string, timeoutSeconds?: number) =>
-    api<{ operationId: string }>('POST', `v1/machines/${id}/stop`, { body: timeoutSeconds ? { timeoutSeconds } : {} }),
+  stop: (id: string, timeoutSeconds?: number, opts?: { overrideKey?: string }) =>
+    api<{ operationId: string }>('POST', `v1/machines/${id}/stop`, { body: timeoutSeconds ? { timeoutSeconds } : {}, ...opts }),
 
-  suspend: (id: string) =>
-    api<{ operationId: string }>('POST', `v1/machines/${id}/suspend`, { body: {} }),
+  suspend: (id: string, opts?: { overrideKey?: string }) =>
+    api<{ operationId: string }>('POST', `v1/machines/${id}/suspend`, { body: {}, ...opts }),
 
-  resume: (id: string) =>
-    api<{ operationId: string }>('POST', `v1/machines/${id}/resume`, { body: {} }),
+  resume: (id: string, opts?: { overrideKey?: string }) =>
+    api<{ operationId: string }>('POST', `v1/machines/${id}/resume`, { body: {}, ...opts }),
 
   wake: (id: string) =>
     api<unknown>('POST', `v1/machines/${id}/wake`, { body: {}, timeoutMs: 60000 }),

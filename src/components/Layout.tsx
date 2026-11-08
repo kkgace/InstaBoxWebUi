@@ -4,7 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Boxes, Camera, Globe, KeyRound, Webhook,
   PackageOpen, Gauge, Shapes, TerminalSquare, Settings, Box, ChevronDown,
-  UserCircle, Trash2, Plus, Menu, X, Bell, Languages,
+  UserCircle, Trash2, Plus, Menu, X, Bell, Languages, Users,
 } from 'lucide-react';
 import { useGlobal } from '@/state';
 import { getApiKey, upsertAccount, removeAccount, errText, api } from '@/api/client';
@@ -14,6 +14,7 @@ import { NotificationBell } from '@/components/NotificationBell';
 
 const NAV = [
   { to: '/', label: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/matrix', label: 'nav.matrix', icon: Users },
   { to: '/machines', label: 'nav.machines', icon: Boxes },
   { to: '/snapshots', label: 'nav.snapshots', icon: Camera },
   { to: '/ports', label: 'nav.ports', icon: Globe },

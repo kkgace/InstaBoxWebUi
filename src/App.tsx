@@ -6,6 +6,7 @@ import { api, errText, onConsoleAuthNeeded } from '@/api/client';
 import { useT } from '@/i18n';
 import { Button, Field, Input, ErrorBox, Card } from '@/components/ui';
 import Dashboard from '@/pages/Dashboard';
+import Matrix from '@/pages/Matrix';
 import Machines from '@/pages/Machines';
 import MachineDetail from '@/pages/MachineDetail';
 import Snapshots from '@/pages/Snapshots';
@@ -54,6 +55,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Dashboard />} />
+          <Route path="matrix" element={<Matrix />} />
           <Route path="machines" element={<Machines />} />
           <Route path="machines/:id" element={<MachineDetail />} />
           <Route path="snapshots" element={<Snapshots />} />

@@ -21,6 +21,8 @@ import MetricsTab from './detail/MetricsTab';
 import SshTab from './detail/SshTab';
 import SecretsTab from './detail/SecretsTab';
 import SettingsTab from './detail/SettingsTab';
+import CronTab from './detail/CronTab';
+import AndroidTab from './detail/AndroidTab';
 
 export default function MachineDetail() {
   const { id = '' } = useParams();
@@ -90,6 +92,8 @@ export default function MachineDetail() {
           { key: 'metrics', label: t('tab.metrics') },
           { key: 'ssh', label: t('tab.ssh') },
           { key: 'secrets', label: t('tab.secrets') },
+          { key: 'cron', label: t('tab.cron') },
+          ...(/android/i.test(m.template.id) ? [{ key: 'android', label: t('tab.android') }] : []),
           { key: 'settings', label: t('tab.settings') },
         ]}
       />
@@ -106,6 +110,8 @@ export default function MachineDetail() {
       {tab === 'metrics' && <MetricsTab m={m} />}
       {tab === 'ssh' && <SshTab m={m} />}
       {tab === 'secrets' && <SecretsTab m={m} />}
+      {tab === 'cron' && <CronTab m={m} />}
+      {tab === 'android' && <AndroidTab m={m} />}
       {tab === 'settings' && <SettingsTab m={m} reload={load} />}
     </div>
   );

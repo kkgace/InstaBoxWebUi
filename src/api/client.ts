@@ -105,6 +105,7 @@ export interface ApiOptions {
   signal?: AbortSignal;
   timeoutMs?: number;           // 默认 120s（长轮询 wait=25s 需要）；传 Infinity 关闭
   raw?: boolean;                // 返回原始 Response（下载用）
+  overrideKey?: string;         // 跨账号看板：以指定账号的 Key 发请求，不改变当前登录
 }
 
 export async function api<T = unknown>(method: string, path: string, opts: ApiOptions = {}): Promise<T> {
@@ -130,7 +131,7 @@ export async function api<T = unknown>(method: string, path: string, opts: ApiOp
 }
 
 async function apiRaw(method: string, path: string, opts: ApiOptions): Promise<Response> {
-  const key = getApiKey();
+  const key = opts.overrideKey || getApiKey();
   const headers: Record<string, string> = { ...opts.headers };
   // API Key 与 Content-Type 经查询参数传递：
   // InstaBox 的端口边缘代理会剥掉自定义请求头（X-API-Key/Authorization），查询串则总是保留。
