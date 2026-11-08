@@ -94,12 +94,31 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > fi
 > ```
 
-## Docker
+## Docker Compose (easiest deployment)
+
+Three commands — no Node.js, no build steps on the host:
+
+```bash
+git clone https://github.com/kkgace/InstaBoxWebUi.git
+cd InstaBoxWebUi
+docker compose up -d        # builds + starts, auto-restart on crash/reboot
+```
+
+Open `http://localhost:3000`, click **Configure API Key** in the top bar. First build takes ~2–3 minutes.
+
+```bash
+docker compose logs -f      # follow logs
+docker compose down         # stop and remove
+```
+
+Change the host port by editing the left side of `ports` (`"8080:3000"`); a server-injected key can be set in `docker-compose.yml` under `environment` (`INSTABOX_API_KEY`). The image ships a built-in `HEALTHCHECK` hitting `/healthz` every 30 s (`docker compose ps` shows the status).
+
+## Docker (single container)
 
 ```bash
 docker build -t instabox-ui .
-docker run -p 3000:3000 instabox-ui
-# Server-side key (optional): -e INSTABOX_API_KEY=ibk_xxx
+docker run -d -p 3000:3000 --restart unless-stopped --name instabox-ui instabox-ui
+# Server-side key (optional): add -e INSTABOX_API_KEY=ibk_xxx
 ```
 
 ## Configuration (server/index.mjs)

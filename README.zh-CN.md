@@ -94,12 +94,31 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > fi
 > ```
 
-## Docker
+## Docker Compose（最简部署）
+
+三条命令，宿主机无需 Node.js 和任何构建步骤：
+
+```bash
+git clone https://github.com/kkgace/InstaBoxWebUi.git
+cd InstaBoxWebUi
+docker compose up -d        # 构建并启动；崩溃/重启后自动拉起
+```
+
+浏览器打开 `http://localhost:3000`，点顶栏「配置 API Key」即可。首次构建约 2-3 分钟。
+
+```bash
+docker compose logs -f      # 跟踪日志
+docker compose down         # 停止并移除
+```
+
+改宿主机端口：编辑 `ports` 左侧（如 `"8080:3000"`）；服务端注入 Key：编辑 `docker-compose.yml` 的 `environment` 下的 `INSTABOX_API_KEY`。镜像内置 `HEALTHCHECK`，每 30 秒请求一次 `/healthz`（`docker compose ps` 可查看健康状态）。
+
+## Docker（单容器）
 
 ```bash
 docker build -t instabox-ui .
-docker run -p 3000:3000 instabox-ui
-# 服务端收口 Key（可选）：-e INSTABOX_API_KEY=ibk_xxx
+docker run -d -p 3000:3000 --restart unless-stopped --name instabox-ui instabox-ui
+# 服务端收口 Key（可选）：加 -e INSTABOX_API_KEY=ibk_xxx
 ```
 
 ## 环境变量（server/index.mjs）

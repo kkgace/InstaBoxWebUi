@@ -1,0 +1,26 @@
+# InstaBox WebUI 控制台 — Docker Compose 部署（最简方式）
+#
+# 用法：
+#   git clone https://github.com/kkgace/InstaBoxWebUi.git && cd InstaBoxWebUi
+#   docker compose up -d          # 构建并启动（首次构建约 2-3 分钟）
+#   docker compose logs -f        # 查看日志
+#   docker compose down           # 停止并移除
+#
+# 然后浏览器打开 http://localhost:3000，在界面里配置 API Key 即可。
+#
+# 修改宿主机端口：把 ports 的左侧 "3000" 改掉（右侧保持 3000）。
+services:
+  instabox-ui:
+    build: .
+    image: instabox-ui:latest
+    container_name: instabox-ui
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: "3000"
+      # 可选：服务端注入 API Key（浏览器不带 Key 时兜底；部署到私人环境可用来收口）
+      # INSTABOX_API_KEY: ibk_xxx
+      # 可选：自定义上游（默认 https://api.instabox.sh）
+      # INSTABOX_API: https://api.instabox.sh
+    restart: unless-stopped
+    # 健康检查继承自 Dockerfile 的 HEALTHCHECK（GET /healthz）
