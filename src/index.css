@@ -11,6 +11,17 @@
   --color-acc: #38bdf8;
 }
 
+/* 浅色主题：覆盖 token（组件的 Tailwind utilities 引用 var，自动生效） */
+html.light {
+  --color-bg: #f2f5f9;
+  --color-panel: #ffffff;
+  --color-panel2: #eaf0f6;
+  --color-line: #d5dfe9;
+  --color-txt: #17233a;
+  --color-dim: #5d6c82;
+  --color-acc: #0284c7;
+}
+
 html, body, #root {
   height: 100%;
 }
@@ -24,8 +35,8 @@ body {
 
 /* 滚动条 */
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-thumb { background: #2a3a55; border-radius: 4px; }
-*::-webkit-scrollbar-thumb:hover { background: #3a4f70; }
+*::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-dim) 40%, transparent); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-dim) 60%, transparent); }
 *::-webkit-scrollbar-track { background: transparent; }
 
 .mono {

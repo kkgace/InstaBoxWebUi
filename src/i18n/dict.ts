@@ -325,6 +325,36 @@ export const dict = {
     'mcp.configPath': '配置文件', 'mcp.envNote': ' 需先在环境变量中设置',
     'mcp.cliTitle': 'CLI 方式（自动写入）', 'mcp.scopeNote': 'MCP 工具调用遵循 API Key 的 scopes 与配额限制。',
 
+    // ---------- Webhook 收件箱 ----------
+    'nav.inbox': 'Webhook 收件箱', 'wk.title': 'Webhook 收件箱',
+    'wk.desc': '把 InstaBox Webhook 的 URL 指向本控制台，事件直接在这里查看——无需外部服务。',
+    'wk.yourUrl': '你的接收 URL（配置到 Webhook 端点）', 'wk.tokenNote': '已启用访问密码：URL 需带 ?token=（已自动附上）。修改 CONSOLE_PASSWORD 后需更新。',
+    'wk.empty': '还没有收到事件——在「Webhooks」页添加端点，URL 用上面的地址，然后发一个测试事件。',
+    'wk.colEvent': '事件', 'wk.colBody': '正文', 'wk.autoRefresh': '自动刷新', 'wk.clear': '清空',
+    'wk.sig': '签名', 'wk.cleared': '收件箱已清空',
+    // ---------- 告警规则 ----------
+    'al.title': '告警规则', 'al.desc': '满足条件时推送到通知中心与浏览器通知（同规则 6 小时冷却）。',
+    'al.cost': '本月费用超过（USD）', 'al.runtime': '连续运行超过（分钟）', 'al.add': '添加规则',
+    'al.none': '暂无规则', 'al.thresholdPh': '阈值',
+    // ---------- 快捷命令 ----------
+    'qc.title': '快捷命令', 'qc.save': '保存为片段', 'qc.namePh': '片段名', 'qc.none': '暂无片段',
+    'qc.insert': '插入', 'qc.ran': '执行完成', 'qc.runOn': '执行于',
+    // ---------- 批量 ----------
+    'batch.selected': '已选 {n} 台', 'batch.start': '启动', 'batch.stop': '停止', 'batch.suspend': '暂停',
+    'batch.progress': '{i}/{n}', 'batch.skip': '{n} 台状态不符跳过',
+    // ---------- 命令面板 ----------
+    'kbd.title': '命令面板', 'kbd.ph': '搜索页面、沙箱、账号…', 'kbd.pages': '页面', 'kbd.sandboxes': '沙箱',
+    'kbd.accounts': '账号', 'kbd.none': '无匹配',
+    // ---------- 主题 ----------
+    'theme.switch': '主题', 'theme.dark': '深色', 'theme.light': '浅色',
+    // ---------- 备份恢复 ----------
+    'cfg.title': '配置备份 / 恢复', 'cfg.desc': '导出本地配置（账号档案、创建预设、快捷命令、告警规则、界面偏好）。API Key 默认不含——勾选后包含，请妥善保管导出文件。',
+    'cfg.export': '导出 JSON', 'cfg.includeKeys': '包含 API Key', 'cfg.import': '导入', 'cfg.imported': '已导入 {n} 项，刷新后生效',
+    'cfg.importErr': '导入失败：文件格式不正确',
+    // ---------- 审计 ----------
+    'aud.title': '操作日志', 'aud.desc': '本地记录本浏览器发起的全部写操作（不含 GET），仅存于此浏览器。',
+    'aud.empty': '暂无记录', 'aud.clear': '清空', 'aud.colPath': '路径', 'aud.colStatus': '状态',
+
     // ---------- 状态 ----------
     'state.running': '运行中', 'state.starting': '启动中', 'state.creating': '创建中', 'state.resuming': '恢复中',
     'state.stopping': '停止中', 'state.suspending': '暂停中', 'state.stopped': '已停止', 'state.suspended': '已暂停',
@@ -670,6 +700,36 @@ export const dict = {
     'mcp.inlineHint': 'Inlining writes the real key into the config file — private machines only, and never commit it',
     'mcp.configPath': 'Config file', 'mcp.envNote': ' must be set in the environment',
     'mcp.cliTitle': 'CLI way (writes it for you)', 'mcp.scopeNote': "MCP tool calls follow the API key's scopes and quotas.",
+
+    // ---------- webhook inbox ----------
+    'nav.inbox': 'Webhook inbox', 'wk.title': 'Webhook inbox',
+    'wk.desc': 'Point InstaBox webhooks at this console and read events here — no external service needed.',
+    'wk.yourUrl': 'Your receiver URL (set it on the webhook endpoint)', 'wk.tokenNote': 'Access password is on: the URL needs ?token= (appended automatically). Update it after changing CONSOLE_PASSWORD.',
+    'wk.empty': 'No events yet — add an endpoint on the Webhooks page with the URL above, then send a test event.',
+    'wk.colEvent': 'Event', 'wk.colBody': 'Body', 'wk.autoRefresh': 'Auto-refresh', 'wk.clear': 'Clear',
+    'wk.sig': 'signature', 'wk.cleared': 'Inbox cleared',
+    // ---------- alerts ----------
+    'al.title': 'Alert rules', 'al.desc': 'When a condition is met, a notification lands in the event center and your browser (6 h cooldown per rule).',
+    'al.cost': 'Monthly cost above (USD)', 'al.runtime': 'Continuous run above (minutes)', 'al.add': 'Add rule',
+    'al.none': 'No rules', 'al.thresholdPh': 'threshold',
+    // ---------- snippets ----------
+    'qc.title': 'Command snippets', 'qc.save': 'Save as snippet', 'qc.namePh': 'snippet name', 'qc.none': 'No snippets',
+    'qc.insert': 'Insert', 'qc.ran': 'Finished', 'qc.runOn': 'run on',
+    // ---------- batch ----------
+    'batch.selected': '{n} selected', 'batch.start': 'Start', 'batch.stop': 'Stop', 'batch.suspend': 'Pause',
+    'batch.progress': '{i}/{n}', 'batch.skip': '{n} skipped (state mismatch)',
+    // ---------- palette ----------
+    'kbd.title': 'Command palette', 'kbd.ph': 'Search pages, sandboxes, accounts…', 'kbd.pages': 'Pages', 'kbd.sandboxes': 'Sandboxes',
+    'kbd.accounts': 'Accounts', 'kbd.none': 'No matches',
+    // ---------- theme ----------
+    'theme.switch': 'Theme', 'theme.dark': 'Dark', 'theme.light': 'Light',
+    // ---------- backup ----------
+    'cfg.title': 'Backup / restore', 'cfg.desc': 'Export local settings (account profiles, create profiles, snippets, alert rules, UI preferences). API keys are excluded by default — include them explicitly and keep the file safe.',
+    'cfg.export': 'Export JSON', 'cfg.includeKeys': 'Include API keys', 'cfg.import': 'Import', 'cfg.imported': '{n} entries imported — refresh to apply',
+    'cfg.importErr': 'Import failed: invalid file',
+    // ---------- audit ----------
+    'aud.title': 'Activity log', 'aud.desc': 'Every write request made from this browser (GET excluded), stored only here.',
+    'aud.empty': 'No entries', 'aud.clear': 'Clear', 'aud.colPath': 'Path', 'aud.colStatus': 'Status',
 
     // ---------- states ----------
     'state.running': 'running', 'state.starting': 'starting', 'state.creating': 'creating', 'state.resuming': 'resuming',

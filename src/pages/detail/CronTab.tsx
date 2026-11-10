@@ -4,55 +4,9 @@ import { RefreshCw, Plus, Trash2, Save, Clock, Table2, FileText } from 'lucide-r
 import { errText } from '@/api/client';
 import { machinesApi } from '@/api/machines';
 import { useT } from '@/i18n';
+import { parseCrontab, rowsToCrontab, type CronRow } from '@/utils/cron';
 import { Card, Button, Badge, ErrorBox, OkBox, Spinner, Field, Textarea, Input, Empty } from '@/components/ui';
 import type { Machine } from '@/api/types';
-
-interface CronRow {
-  raw: string;          // 原始行（含注释）
-  disabled: boolean;    // # 前缀
-  comment: string;      // 行内注释（# 之后）
-  schedule: string;     // 5 段
-  command: string;
-  special?: string;     // @reboot 等特殊表达式
-  valid: boolean;
-}
-
-function parseCrontab(text: string): CronRow[] {
-  return text.split('\n').filter((l, i, arr) => l.trim() !== '' || i < arr.length - 1).map((raw) => {
-    const line = raw.trimEnd();
-    const disabled = line.trim().startsWith('#');
-    const content = disabled ? line.trim().replace(/^#+\s*/, '') : line.trim();
-    const hashIdx = content.indexOf(' #');
-    const body = hashIdx > 0 ? content.slice(0, hashIdx) : content;
-    const comment = hashIdx > 0 ? content.slice(hashIdx + 2) : '';
-    let schedule = '';
-    let command = '';
-    let special: string | undefined;
-    let valid = false;
-    if (body.startsWith('@')) {
-      const sp = body.split(/\s+/);
-      special = sp[0];
-      command = sp.slice(1).join(' ');
-      valid = sp.length >= 2;
-    } else {
-      const sp = body.split(/\s+/);
-      if (sp.length >= 6) {
-        schedule = sp.slice(0, 5).join(' ');
-        command = sp.slice(5).join(' ');
-        valid = sp.slice(0, 5).every((f) => f.length > 0);
-      }
-    }
-    return { raw: line, disabled, comment, schedule, command, special, valid };
-  });
-}
-
-function rowsToCrontab(rows: CronRow[]): string {
-  return rows.map((r) => {
-    const prefix = r.disabled ? '# ' : '';
-    const body = r.special ? `${r.special} ${r.command}` : (r.schedule ? `${r.schedule} ${r.command}` : r.command);
-    return (r.comment ? `${prefix}${body} # ${r.comment}` : `${prefix}${body}`).trimEnd();
-  }).join('\n');
-}
 
 export default function CronTab({ m }: { m: Machine }) {
   const { t } = useT();

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Plus, RefreshCw, Play, Square, Pause, RotateCcw, Trash2, Zap, Clock, Hourglass, Bookmark, BookmarkPlus,
+  Plus, RefreshCw, Play, Square, Pause, RotateCcw, Trash2, Zap, Clock, Hourglass, Bookmark, BookmarkPlus, X,
 } from 'lucide-react';
 import { errText, waitForOperation } from '@/api/client';
 import { machinesApi, type CreateMachineBody } from '@/api/machines';
@@ -48,6 +48,57 @@ export default function Machines() {
   const [busy, setBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [delTarget, setDelTarget] = useState<Machine | null>(null);
+  // 批量操作
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batchBusy, setBatchBusy] = useState<{ i: number; n: number } | null>(null);
+
+  const toggleSel = (id: string) => {
+    setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
+  const selMachines = machines.filter((m) => selected.has(m.id));
+
+  const batchAct = async (action: 'start' | 'stop' | 'suspend') => {
+    const targets = selMachines.filter((m) =>
+      action === 'start' ? m.state === 'stopped' || m.state === 'suspended'
+        : action === 'stop' ? m.state === 'running'
+        : m.state === 'running');
+    let skipped = selMachines.length - targets.length;
+    setErr(null);
+    let i = 0;
+    for (const m of targets) {
+      i++;
+      setBatchBusy({ i, n: targets.length });
+      try {
+        const r = action === 'start' ? await machinesApi.start(m.id)
+          : action === 'stop' ? await machinesApi.stop(m.id)
+          : await machinesApi.suspend(m.id);
+        // 不等 operation 完成（多台时太慢），下一台直接走
+        if (r && typeof r === 'object' && 'operationId' in r) await new Promise((res) => setTimeout(res, 300));
+      } catch (e) {
+        skipped++;
+      }
+    }
+    setBatchBusy(null);
+    setSelected(new Set());
+    if (skipped > 0) setErr(t('batch.skip', { n: skipped }));
+    await load();
+  };
+
+  const batchDel = async () => {
+    setErr(null);
+    let i = 0;
+    let skipped = 0;
+    for (const m of selMachines) {
+      i++;
+      setBatchBusy({ i, n: selMachines.length });
+      try { await machinesApi.delete(m.id); await new Promise((res) => setTimeout(res, 300)); }
+      catch (e) { skipped++; }
+    }
+    setBatchBusy(null);
+    setSelected(new Set());
+    if (skipped > 0) setErr(t('batch.skip', { n: skipped }));
+    await load();
+  };
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -99,7 +150,14 @@ export default function Machines() {
       {loading && machines.length === 0 ? <Spinner /> : machines.length === 0 ? (
         <Card><div className="py-8 text-center text-sm text-dim">{t('ml.empty1')}</div></Card>
       ) : (
-        <Table head={[t('ml.colName'), t('common.status'), t('ml.colSpec'), t('ml.colDisk'), t('ml.colTemplate'), t('ml.colAutoPause'), t('ml.colTimers'), t('common.actions')]}>
+        <Table head={[
+          <input
+            key="all" type="checkbox" className="accent-sky-500"
+            checked={machines.length > 0 && selected.size === machines.length}
+            onChange={(e) => setSelected(e.target.checked ? new Set(machines.map((m) => m.id)) : new Set())}
+          />,
+          t('ml.colName'), t('common.status'), t('ml.colSpec'), t('ml.colDisk'), t('ml.colTemplate'), t('ml.colAutoPause'), t('ml.colTimers'), t('common.actions'),
+        ]}>
           {machines.map((m) => {
             const del2 = fmtDeadline(m.deleteAt);
             const arch = fmtDeadline(m.archiveAt);
@@ -110,6 +168,9 @@ export default function Machines() {
             const canResume = m.state === 'suspended';
             return (
               <tr key={m.id} className="hover:bg-white/[0.03]">
+                <Td>
+                  <input type="checkbox" className="accent-sky-500" checked={selected.has(m.id)} onChange={() => toggleSel(m.id)} />
+                </Td>
                 <Td>
                   <Link to={`/machines/${m.id}`} className="font-medium text-sky-400 hover:underline">{m.name}</Link>
                   <div className="mono text-[10px] text-dim">{m.id}</div>
@@ -145,6 +206,22 @@ export default function Machines() {
       )}
 
       <CreateDialog open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); load(); }} />
+
+      {/* 批量操作条 */}
+      {selMachines.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-panel px-3 py-2 shadow-2xl">
+            <span className="text-xs text-slate-300">{t('batch.selected', { n: selMachines.length })}</span>
+            {batchBusy && <span className="text-xs text-sky-400">{t('batch.progress', { i: batchBusy.i, n: batchBusy.n })}</span>}
+            <span className="w-px h-4 bg-line" />
+            <Button className="!py-1 !text-xs" onClick={() => batchAct('start')} disabled={!!batchBusy}><Play size={12} /> {t('batch.start')}</Button>
+            <Button className="!py-1 !text-xs" onClick={() => batchAct('stop')} disabled={!!batchBusy}><Square size={12} /> {t('batch.stop')}</Button>
+            <Button className="!py-1 !text-xs" onClick={() => batchAct('suspend')} disabled={!!batchBusy}><Pause size={12} /> {t('batch.suspend')}</Button>
+            <Button className="!py-1 !text-xs" variant="danger" onClick={batchDel} disabled={!!batchBusy}><Trash2 size={12} /> {t('common.delete')}</Button>
+            <Button className="!py-1 !text-xs" variant="ghost" onClick={() => setSelected(new Set())}><X size={12} /></Button>
+          </div>
+        </div>
+      )}
       <Confirm
         open={!!delTarget}
         onClose={() => setDelTarget(null)}

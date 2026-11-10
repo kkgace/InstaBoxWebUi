@@ -1,5 +1,6 @@
 /** API 客户端：所有请求经本地代理 /p/* 转发到 api.instabox.sh */
 import { getLang } from '@/i18n';
+import { recordAudit } from '@/utils/audit';
 
 const KEY_STORAGE = 'instabox-ui.apiKey';
 
@@ -122,11 +123,13 @@ export async function api<T = unknown>(method: string, path: string, opts: ApiOp
     if (res.status === 401 && err?.code === 'console_auth') {
       consoleAuthEvents.dispatchEvent(new Event('console-auth'));
     }
+    recordAudit({ method, path, status: res.status, ok: false });
     throw new ApiError(res.status, err?.code || `http_${res.status}`, err?.message || res.statusText, {
       requestId: err?.requestId,
       retryable: err ? 'retryable' in err && String(err.retryable) === 'true' : undefined,
     });
   }
+  recordAudit({ method, path, status: res.status, ok: true });
   return data as T;
 }
 

@@ -93,7 +93,7 @@ export const machinesApi = {
   exec: (id: string, body: {
     cmd?: string; argv?: string[]; cwd?: string; envs?: Record<string, string>;
     stdin?: string; timeoutSeconds?: number;
-  }) => api<ExecResult>('POST', `v1/machines/${id}/exec`, { body, timeoutMs: (body.timeoutSeconds ?? 60) * 1000 + 15000 }),
+  }, opts?: { overrideKey?: string }) => api<ExecResult>('POST', `v1/machines/${id}/exec`, { body, timeoutMs: (body.timeoutSeconds ?? 60) * 1000 + 15000, ...opts }),
 
   history: (id: string, limit = 50) =>
     api<{ entries: ExecHistoryEntry[] }>('GET', `v1/machines/${id}/history`, { query: { limit } }),

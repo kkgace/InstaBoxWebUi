@@ -1,11 +1,13 @@
 /** 设置：API Key、通知、MCP 配置生成器、代理状态、功能说明 */
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Bell, Plug } from 'lucide-react';
+import { CheckCircle2, XCircle, Bell, Plug, Trash2 } from 'lucide-react';
 import { api, getApiKey, setApiKey, errText } from '@/api/client';
 import { useGlobal } from '@/state';
 import { useT } from '@/i18n';
-import { notifyPermission, requestNotifyPermission } from '@/utils/notify';
-import { Card, Button, Badge, ErrorBox, OkBox, Field, Input, JsonView, CopyButton, Select } from '@/components/ui';
+import { notifyPermission, requestNotifyPermission, getAlertRules, addAlertRule, removeAlertRule, toggleAlertRule, type AlertKind } from '@/utils/notify';
+import { getAudit, clearAudit } from '@/utils/audit';
+import { Card, Button, Badge, ErrorBox, OkBox, Field, Input, JsonView, CopyButton, Select, Table, Td } from '@/components/ui';
+import { fmtTime } from '@/utils/format';
 
 const MCP_CLIENTS = ['claude', 'cursor', 'codex', 'opencode'] as const;
 type McpClient = (typeof MCP_CLIENTS)[number];
@@ -100,6 +102,18 @@ export default function Settings() {
 
       <Card title={<span className="inline-flex items-center gap-1.5"><Plug size={15} /> {t('mcp.title')}</span>}>
         <McpGenerator />
+      </Card>
+
+      <Card title={<span className="inline-flex items-center gap-1.5"><Bell size={15} /> {t('al.title')}</span>}>
+        <AlertRules />
+      </Card>
+
+      <Card title={t('cfg.title')}>
+        <BackupRestore />
+      </Card>
+
+      <Card title={t('aud.title')}>
+        <AuditLog />
       </Card>
 
       <Card title={t('set.proxyState')} right={<Button variant="ghost" onClick={testProxy} loading={testing}>{t('set.proxyTest')}</Button>}>
@@ -225,6 +239,137 @@ instabox keys create --name mcp
 instabox mcp init ${client} --hosted`}</pre>
       </details>
       <p className="text-[10px] text-dim">{t('mcp.scopeNote')}</p>
+    </div>
+  );
+}
+
+// ---------- 告警规则 ----------
+function AlertRules() {
+  const { t } = useT();
+  const { refreshMe } = useGlobal();
+  void refreshMe;
+  const [rules, setRules] = useState(getAlertRules());
+  const [kind, setKind] = useState<AlertKind>('runtime');
+  const [threshold, setThreshold] = useState(kind === 'cost' ? '5' : '120');
+
+  const add = () => {
+    const n = Number(threshold);
+    if (!n || n <= 0) return;
+    setRules(addAlertRule(kind, n));
+  };
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-dim">{t('al.desc')}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={kind} onChange={(e) => { const k = e.target.value as AlertKind; setKind(k); setThreshold(k === 'cost' ? '5' : '120'); }} className="w-56">
+          <option value="runtime">{t('al.runtime')}</option>
+          <option value="cost">{t('al.cost')}</option>
+        </Select>
+        <Input type="number" value={threshold} onChange={(e) => setThreshold(e.target.value)} className="w-28" placeholder={t('al.thresholdPh')} />
+        <Button variant="primary" onClick={add}>{t('al.add')}</Button>
+      </div>
+      {rules.length === 0 ? <div className="text-xs text-dim">{t('al.none')}</div> : (
+        <div className="space-y-1.5">
+          {rules.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 rounded-md border border-line bg-panel2 px-3 py-2 text-xs">
+              <input type="checkbox" checked={r.enabled} onChange={() => setRules(toggleAlertRule(r.id))} className="accent-sky-500" />
+              <span className="text-slate-300">{r.kind === 'cost' ? t('al.cost') : t('al.runtime')} <b className="mono">{r.threshold}</b></span>
+              {r.lastFiredAt && <span className="text-dim">· {fmtTime(r.lastFiredAt)}</span>}
+              <span className="flex-1" />
+              <Button className="!px-1.5 !py-1" variant="danger" onClick={() => setRules(removeAlertRule(r.id))}><Trash2 size={12} /></Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- 配置备份 / 恢复 ----------
+function BackupRestore() {
+  const { t } = useT();
+  const [includeKeys, setIncludeKeys] = useState(false);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const exportCfg = () => {
+    const out: Record<string, unknown> = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k?.startsWith('instabox-ui.')) continue;
+      if (k === 'instabox-ui.apiKey' && !includeKeys) continue;
+      if (k === 'instabox-ui.notify.states') continue; // 基线状态不含
+      out[k] = (() => { try { return JSON.parse(localStorage.getItem(k) || ''); } catch { return localStorage.getItem(k); } })();
+    }
+    const blob = new Blob([JSON.stringify({ app: 'instabox-ui', version: 1, data: out }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `instabox-ui-config-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setOk(t('common.done'));
+  };
+
+  const importCfg = async (files: FileList | null) => {
+    if (!files?.length) return;
+    try {
+      const j = JSON.parse(await files[0].text());
+      const data = j?.data;
+      if (!data || typeof data !== 'object' || j?.app !== 'instabox-ui') throw new Error('bad');
+      let n = 0;
+      for (const [k, v] of Object.entries(data as Record<string, unknown>)) {
+        if (k === 'instabox-ui.apiKey' && !includeKeys) continue;
+        localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+        n++;
+      }
+      setOk(t('cfg.imported', { n }));
+      setErr(null);
+    } catch {
+      setErr(t('cfg.importErr'));
+      setOk(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-dim">{t('cfg.desc')}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" onClick={exportCfg}>{t('cfg.export')}</Button>
+        <Button onClick={() => document.getElementById('cfg-import')?.click()}>{t('cfg.import')}</Button>
+        <input id="cfg-import" type="file" accept=".json" hidden onChange={(e) => { importCfg(e.target.files); e.target.value = ''; }} />
+        <label className="flex items-center gap-2 text-xs text-slate-300">
+          <input type="checkbox" checked={includeKeys} onChange={(e) => setIncludeKeys(e.target.checked)} className="accent-sky-500" /> {t('cfg.includeKeys')}
+        </label>
+      </div>
+      <ErrorBox>{err}</ErrorBox>
+      {ok && <OkBox>{ok}</OkBox>}
+    </div>
+  );
+}
+
+// ---------- 操作日志 ----------
+function AuditLog() {
+  const { t } = useT();
+  const [list, setList] = useState(getAudit());
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="text-xs text-dim">{t('aud.desc')}</p>
+      <div className="flex justify-end">
+        {list.length > 0 && <Button variant="ghost" className="!py-1" onClick={() => { clearAudit(); setList([]); }}>{t('aud.clear')}</Button>}
+      </div>
+      {list.length === 0 ? <div className="text-xs text-dim">{t('aud.empty')}</div> : (
+        <Table head={[t('common.time'), t('exec.cmd'), t('aud.colPath'), t('aud.colStatus')]}>
+          {list.slice(0, 50).map((a, i) => (
+            <tr key={i}>
+              <Td className="text-xs text-dim">{fmtTime(a.at)}</Td>
+              <Td className="mono text-xs">{a.method}</Td>
+              <Td className="mono max-w-64 truncate text-xs" title={a.path}>{a.path}</Td>
+              <Td>{a.ok ? <Badge value="succeeded">{a.status}</Badge> : <Badge value="failed">{a.status}</Badge>}</Td>
+            </tr>
+          ))}
+        </Table>
+      )}
     </div>
   );
 }

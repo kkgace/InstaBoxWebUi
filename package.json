@@ -12,6 +12,7 @@
     "build": "tsc -b && vite build",
     "start": "node server/index.mjs",
     "lint": "eslint src server",
+    "test": "vitest run",
     "gen:catalog": "python scripts/gen_catalog.py"
   },
   "dependencies": {
@@ -26,10 +27,12 @@
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^5.1.0",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "jsdom": "^31.0.0",
     "lucide-react": "^0.460.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
@@ -38,6 +41,7 @@
     "tailwindcss": "^4.1.0",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.72.1",
-    "vite": "^6.0.3"
+    "vite": "^6.0.3",
+    "vitest": "^5.1.0"
   }
 }

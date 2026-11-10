@@ -7,12 +7,60 @@ import type { Machine } from '@/api/types';
 export interface NotifyEvent {
   id: string;
   at: string;
-  kind: 'state' | 'error';
+  kind: 'state' | 'error' | 'alert';
   machineId: string;
   machineName: string;
   from?: string;
   to?: string;
   message?: string;
+}
+
+// ---------- 告警规则 ----------
+export type AlertKind = 'cost' | 'runtime';
+export interface AlertRule {
+  id: string;
+  kind: AlertKind;
+  threshold: number;        // cost: USD；runtime: 连续运行分钟
+  enabled: boolean;
+  lastFiredAt?: string;
+}
+const RULES_KEY = 'instabox-ui.alerts';
+
+export function getAlertRules(): AlertRule[] {
+  try { return JSON.parse(localStorage.getItem(RULES_KEY) || '[]'); } catch { return []; }
+}
+export function saveAlertRules(list: AlertRule[]) {
+  localStorage.setItem(RULES_KEY, JSON.stringify(list));
+}
+export function addAlertRule(kind: AlertKind, threshold: number): AlertRule[] {
+  const list = getAlertRules().filter((r) => r.kind !== kind);
+  list.push({ id: `al-${kind}`, kind, threshold, enabled: true });
+  saveAlertRules(list);
+  return list;
+}
+export function removeAlertRule(id: string): AlertRule[] {
+  const list = getAlertRules().filter((r) => r.id !== id);
+  saveAlertRules(list);
+  return list;
+}
+export function toggleAlertRule(id: string): AlertRule[] {
+  const list = getAlertRules().map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r));
+  saveAlertRules(list);
+  return list;
+}
+
+function fireAlert(kind: AlertKind, rule: AlertRule, message: string, onChange: (events: NotifyEvent[]) => void) {
+  // 冷却：同规则 6 小时内不重复触发
+  if (rule.lastFiredAt && Date.now() - new Date(rule.lastFiredAt).getTime() < 6 * 3600 * 1000) return;
+  const list = getAlertRules().map((r) => (r.id === rule.id ? { ...r, lastFiredAt: new Date().toISOString() } : r));
+  saveAlertRules(list);
+  const ev: NotifyEvent = {
+    id: `al-${kind}-${Date.now()}`,
+    at: new Date().toISOString(),
+    kind: 'alert', machineId: '', machineName: '', message,
+  };
+  onChange(pushEvent(ev));
+  browserNotify(ev);
 }
 
 const EVT_KEY = 'instabox-ui.notify.events';
@@ -66,16 +114,50 @@ function saveKnown(k: KnownStates) {
 }
 
 let timer: ReturnType<typeof setInterval> | null = null;
+let tickCount = 0;
 
 export function stopNotifyPolling() {
   if (timer) { clearInterval(timer); timer = null; }
 }
 
-/** 全局轮询：60s 一次，对比状态翻转 → 事件 + 浏览器通知 */
+/** 全局轮询：60s 一次，对比状态翻转 → 事件 + 浏览器通知；并评估告警规则 */
 export function startNotifyPolling(onChange: (events: NotifyEvent[]) => void, intervalMs = 60000) {
   if (timer) clearInterval(timer);
+  const evaluateRuntimeAlerts = (machines: Machine[]) => {
+    const rules = getAlertRules().filter((r) => r.enabled && r.kind === 'runtime');
+    if (!rules.length) return;
+    const en = getLang() === 'en';
+    for (const r of rules) {
+      for (const m of machines) {
+        if (m.state !== 'running' || !m.runStartedAt) continue;
+        const runMin = (Date.now() - new Date(m.runStartedAt).getTime()) / 60000;
+        if (runMin >= r.threshold) {
+          fireAlert('runtime', r, en
+            ? `Sandbox ${m.name} has been running for ${Math.round(runMin)} min (limit ${r.threshold})`
+            : `沙箱 ${m.name} 已连续运行 ${Math.round(runMin)} 分钟（阈值 ${r.threshold}）`, onChange);
+          break; // 同规则一次 tick 只触发一台
+        }
+      }
+    }
+  };
+  const evaluateCostAlert = async () => {
+    const rule = getAlertRules().find((r) => r.enabled && r.kind === 'cost');
+    if (!rule) return;
+    try {
+      const { miscApi } = await import('@/api/misc');
+      const usage = await miscApi.usage();
+      const cost = usage.cost?.costUSD;
+      if (cost != null && cost >= rule.threshold) {
+        const en = getLang() === 'en';
+        fireAlert('cost', rule, en
+          ? `Monthly cost $${cost.toFixed(2)} reached the $${rule.threshold} cap`
+          : `本月费用 $${cost.toFixed(2)} 已达阈值 $${rule.threshold}`, onChange);
+      }
+    } catch { /* ignore */ }
+  };
   const tick = async () => {
     if (!getApiKey()) return;
+    tickCount++;
     let machines: Machine[];
     try {
       machines = (await machinesApi.list({ limit: 200 })).machines || [];
@@ -118,6 +200,9 @@ export function startNotifyPolling(onChange: (events: NotifyEvent[]) => void, in
       if (!machines.some((m) => m.id === id)) { delete known[id]; changed = true; }
     }
     if (changed) saveKnown(known);
+    // 告警：runtime 每 tick（数据在手），cost 每 30 tick（约 30 分钟）
+    evaluateRuntimeAlerts(machines);
+    if (tickCount % 30 === 0) void evaluateCostAlert();
   };
   // 启动后先等 3s 做首次基线，再周期轮询
   setTimeout(tick, 3000);

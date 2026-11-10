@@ -1,13 +1,14 @@
 /** 跨账号聚合看板：用本地保存的每个账号 Key 并行拉取各自沙箱，一屏总览 + 行内启停 */
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { RefreshCw, Play, Square, Pause, RotateCcw, Users, Trash2 } from 'lucide-react';
+import { RefreshCw, Play, Square, Pause, RotateCcw, Users, Trash2, Zap } from 'lucide-react';
 import { api, errText } from '@/api/client';
 import { getAccounts } from '@/api/client';
 import { machinesApi } from '@/api/machines';
 import { miscApi } from '@/api/misc';
 import { useT } from '@/i18n';
-import { Card, Button, Badge, ErrorBox, Table, Td, Empty, Spinner, Stat, Confirm } from '@/components/ui';
+import { getSnippets, type Snippet } from '@/utils/snippets';
+import { Card, Button, Badge, ErrorBox, Table, Td, Empty, Spinner, Stat, Confirm, Modal, Select } from '@/components/ui';
 import { fmtBytes, fmtTime } from '@/utils/format';
 import type { Machine, Me } from '@/api/types';
 
@@ -26,6 +27,12 @@ export default function Matrix() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [delTarget, setDelTarget] = useState<{ m: Machine; key: string; label: string } | null>(null);
+  // ⚡ 快捷执行
+  const [quick, setQuick] = useState<{ m: Machine; key: string; label: string } | null>(null);
+  const [snippetId, setSnippetId] = useState('');
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickOut, setQuickOut] = useState<{ stdout: string; stderr: string; exitCode: number } | null>(null);
+  const snippets = getSnippets();
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -74,6 +81,18 @@ export default function Matrix() {
       await load();
     } catch (e) { setErr(`${label} / ${m.name}: ${errText(e)}`); }
     setBusy(null);
+  };
+
+  const quickRun = async () => {
+    if (!quick) return;
+    const sn = getSnippets().find((s) => s.id === snippetId);
+    if (!sn) return;
+    setQuickBusy(true); setQuickOut(null);
+    try {
+      const r = await machinesApi.exec(quick.m.id, { cmd: sn.cmd, timeoutSeconds: 60 }, { overrideKey: quick.key });
+      setQuickOut({ stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode });
+    } catch (e) { setErr(`${quick.label} / ${quick.m.name}: ${errText(e)}`); }
+    setQuickBusy(false);
   };
 
   const total = blocks?.reduce((n, b) => n + b.machines.length, 0) ?? 0;
@@ -138,6 +157,7 @@ export default function Matrix() {
                           {canStop && <Button className="!px-2 !py-1" title={t('ov.stop')} loading={busy === m.id + 'stop'} onClick={() => act(m, b.key, b.label, 'stop')}><Square size={13} /></Button>}
                           {canStop && <Button className="!px-2 !py-1" title={t('ov.suspend')} loading={busy === m.id + 'suspend'} onClick={() => act(m, b.key, b.label, 'suspend')}><Pause size={13} /></Button>}
                           {canResume && <Button className="!px-2 !py-1" title={t('ov.resume')} loading={busy === m.id + 'resume'} onClick={() => act(m, b.key, b.label, 'resume')}><RotateCcw size={13} /></Button>}
+                          <Button className="!px-2 !py-1" title={t('qc.title')} onClick={() => { setQuick({ m, key: b.key, label: b.label }); setQuickOut(null); }}><Zap size={13} /></Button>
                           <Button className="!px-2 !py-1" variant="danger" title={t('common.delete')} onClick={() => setDelTarget({ m, key: b.key, label: b.label })}><Trash2 size={13} /></Button>
                         </div>
                       </Td>
@@ -148,6 +168,34 @@ export default function Matrix() {
             )}
         </Card>
       ))}
+
+      {/* ⚡ 快捷执行模态 */}
+      <Modal open={!!quick} onClose={() => setQuick(null)} title={`${t('qc.title')} — ${quick?.m.name || ''}`} width="max-w-xl">
+        <div className="space-y-3">
+          {snippets.length === 0 ? <div className="text-sm text-dim">{t('qc.none')}（{t('nav.machines')} → {t('tab.exec')} → {t('qc.save')}）</div> : (
+            <>
+              <Select value={snippetId} onChange={(e) => setSnippetId(e.target.value)} className="w-full">
+                <option value="">—</option>
+                {snippets.map((s: Snippet) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </Select>
+              {snippetId && (() => {
+                const sn = snippets.find((s) => s.id === snippetId);
+                return sn ? <pre className="mono rounded border border-line bg-bg p-2 text-xs text-slate-300">{sn.cmd}</pre> : null;
+              })()}
+              <Button variant="primary" onClick={quickRun} loading={quickBusy} disabled={!snippetId} className="w-full justify-center">
+                <Zap size={14} /> {t('qc.runOn')} {quick?.m.name}
+              </Button>
+              {quickOut && (
+                <div className="space-y-2">
+                  <Badge value={quickOut.exitCode === 0 ? 'succeeded' : 'failed'}>{t('exec.exitCode', { c: quickOut.exitCode })}</Badge>
+                  {quickOut.stdout && <pre className="mono max-h-40 overflow-auto rounded border border-line bg-bg p-2 text-xs text-emerald-300/90">{quickOut.stdout}</pre>}
+                  {quickOut.stderr && <pre className="mono max-h-32 overflow-auto rounded border border-line bg-bg p-2 text-xs text-red-300/90">{quickOut.stderr}</pre>}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </Modal>
 
       <Confirm
         open={!!delTarget} onClose={() => setDelTarget(null)}

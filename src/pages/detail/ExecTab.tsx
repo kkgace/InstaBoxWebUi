@@ -1,9 +1,10 @@
-/** 命令执行：exec + 历史记录 */
+/** 命令执行：exec + 历史记录 + 快捷命令库 */
 import { useEffect, useState } from 'react';
-import { Play, History, Clock } from 'lucide-react';
+import { Play, History, Clock, Bookmark, Trash2 } from 'lucide-react';
 import { errText } from '@/api/client';
 import { machinesApi } from '@/api/machines';
 import { useT } from '@/i18n';
+import { getSnippets, upsertSnippet, deleteSnippet, type Snippet } from '@/utils/snippets';
 import { Card, Button, Field, Input, Textarea, ErrorBox, JsonView, Table, Td, Badge, Empty } from '@/components/ui';
 import { fmtTime } from '@/utils/format';
 import type { Machine, ExecResult, ExecHistoryEntry } from '@/api/types';
@@ -20,6 +21,10 @@ export default function ExecTab({ m }: { m: Machine }) {
   const [err, setErr] = useState<string | null>(null);
   const [history, setHistory] = useState<ExecHistoryEntry[] | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // 快捷命令库
+  const [snippets, setSnippets] = useState<Snippet[]>(getSnippets);
+  const [snippetName, setSnippetName] = useState('');
+  const [showSaveSnippet, setShowSaveSnippet] = useState(false);
 
   const running = m.state === 'running';
 
@@ -59,6 +64,30 @@ export default function ExecTab({ m }: { m: Machine }) {
             <Field label={t('exec.cmd')} hint={t('exec.cmdHint')}>
               <Textarea rows={4} value={cmd} onChange={(e) => setCmd(e.target.value)} className="h-24 w-full" spellCheck={false} />
             </Field>
+            {/* 快捷命令库 */}
+            <div className="rounded-md border border-line bg-panel2 p-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Bookmark size={13} className="text-dim" />
+                {snippets.length === 0 ? <span className="text-xs text-dim">{t('qc.none')}</span> : snippets.map((s) => (
+                  <span key={s.id} className="inline-flex items-center gap-1 rounded border border-line bg-bg px-2 py-0.5 text-xs">
+                    <button className="text-sky-400 hover:underline" title={s.cmd} onClick={() => setCmd(s.cmd)}>{s.name}</button>
+                    <button className="text-dim hover:text-red-400" onClick={() => { setSnippets(deleteSnippet(s.id)); }}><Trash2 size={10} /></button>
+                  </span>
+                ))}
+                <span className="flex-1" />
+                <Button className="!px-2 !py-1 !text-xs" onClick={() => setShowSaveSnippet((v) => !v)}><Bookmark size={11} /> {t('qc.save')}</Button>
+              </div>
+              {showSaveSnippet && cmd.trim() && (
+                <div className="mt-2 flex items-center gap-2">
+                  <Input value={snippetName} onChange={(e) => setSnippetName(e.target.value)} placeholder={t('qc.namePh')} className="w-44" />
+                  <Button variant="primary" className="!py-1 !text-xs" onClick={() => {
+                    if (!snippetName.trim()) return;
+                    setSnippets(upsertSnippet(snippetName, cmd));
+                    setSnippetName(''); setShowSaveSnippet(false);
+                  }}>{t('common.save')}</Button>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <Field label={t('exec.cwd')}><Input value={cwd} onChange={(e) => setCwd(e.target.value)} placeholder="/data/home" className="mono w-full" /></Field>
               <Field label={t('exec.timeout')}><Input type="number" value={timeout} onChange={(e) => setTimeoutS(e.target.value)} className="w-full" /></Field>

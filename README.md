@@ -21,10 +21,12 @@ A full-featured, dark-mode web console that brings **every API of [InstaBox](htt
 | Usage | Limits & cost breakdown, per-machine billing windows (incl. deleted), allowed sizes |
 | Templates | All templates / versions / bundled software / default spec |
 | **API console** | Browsable catalog of all 160 operations (generated from `openapi.yaml`) + generic request builder — covers every endpoint the UI doesn't have a page for |
-| **Notifications** | Sandbox state changes and errors → browser push notifications + in-app event center (bell in the top bar) |
+| **Notifications & alerts** | Sandbox state changes and errors → browser push notifications + in-app event center; **alert rules** (monthly cost cap, continuous-run limit) with a 6-hour cooldown |
+| **Webhook inbox** | Built-in receiver (`POST /hook`) — point InstaBox webhooks at the console and read the signed event stream right in the UI, no external service |
+| **Cross-account board** | Every locally saved account pulled in parallel on one screen, with inline start/stop/pause/delete via per-account key override |
 | Settings | Multi-account API key management (add / switch / remove), proxy health, deployment guide |
 
-Extras: **bilingual UI** (English / 简体中文, follows your browser and switchable in one click) · **mobile-friendly** (drawer sidebar, responsive tables) · dark theme · async operations poll `GET /v1/operations/{id}?wait=25s` with live progress · API error envelopes translated into friendly messages.
+Extras: **bilingual UI** (English / 简体中文, follows your browser and switchable in one click) · **light/dark theme** · **PWA** (installable on your phone's home screen) · **command palette** (`Ctrl/⌘+K`: jump to pages, sandboxes, accounts) · **bulk actions** (select sandboxes → batch start/stop/pause/delete with progress) · **command snippets** (save and run common commands from any sandbox) · **activity log** of every write request · **config backup/restore** (export/import all local settings) · **mobile-friendly** (drawer sidebar, responsive tables) · async operations poll `GET /v1/operations/{id}?wait=25s` with live progress · API error envelopes translated into friendly messages.
 
 ## Why a proxy?
 

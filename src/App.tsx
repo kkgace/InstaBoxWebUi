@@ -13,6 +13,7 @@ import Snapshots from '@/pages/Snapshots';
 import Ports from '@/pages/Ports';
 import Secrets from '@/pages/Secrets';
 import Webhooks from '@/pages/Webhooks';
+import WebhookInbox from '@/pages/WebhookInbox';
 import Exports from '@/pages/Exports';
 import Usage from '@/pages/Usage';
 import Templates from '@/pages/Templates';
@@ -62,6 +63,7 @@ export default function App() {
           <Route path="ports" element={<Ports />} />
           <Route path="secrets" element={<Secrets />} />
           <Route path="webhooks" element={<Webhooks />} />
+          <Route path="inbox" element={<WebhookInbox />} />
           <Route path="exports" element={<Exports />} />
           <Route path="usage" element={<Usage />} />
           <Route path="templates" element={<Templates />} />

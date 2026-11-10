@@ -4,13 +4,14 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Boxes, Camera, Globe, KeyRound, Webhook,
   PackageOpen, Gauge, Shapes, TerminalSquare, Settings, Box, ChevronDown,
-  UserCircle, Trash2, Plus, Menu, X, Bell, Languages, Users,
+  UserCircle, Trash2, Plus, Menu, X, Bell, Languages, Users, Moon, Sun, Inbox,
 } from 'lucide-react';
 import { useGlobal } from '@/state';
 import { getApiKey, upsertAccount, removeAccount, errText, api } from '@/api/client';
 import { useT } from '@/i18n';
 import { Badge, Modal, Field, Input, Button, ErrorBox, OkBox } from '@/components/ui';
 import { NotificationBell } from '@/components/NotificationBell';
+import { CommandPalette } from '@/components/CommandPalette';
 
 const NAV = [
   { to: '/', label: 'nav.dashboard', icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const NAV = [
   { to: '/ports', label: 'nav.ports', icon: Globe },
   { to: '/secrets', label: 'nav.secrets', icon: KeyRound },
   { to: '/webhooks', label: 'nav.webhooks', icon: Webhook },
+  { to: '/inbox', label: 'nav.inbox', icon: Inbox },
   { to: '/exports', label: 'nav.exports', icon: PackageOpen },
   { to: '/usage', label: 'nav.usage', icon: Gauge },
   { to: '/templates', label: 'nav.templates', icon: Shapes },
@@ -38,10 +40,20 @@ export default function Layout() {
   const [adding, setAdding] = useState(false);
   // 移动端抽屉
   const [drawer, setDrawer] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('instabox-ui.theme') || 'dark');
   const nav = useNavigate();
   const loc = useLocation();
 
   useEffect(() => { setDrawer(false); }, [loc.pathname]);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem('instabox-ui.theme', next);
+    document.documentElement.classList.toggle('light', next === 'light');
+    document.documentElement.classList.toggle('dark', next === 'dark');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', next === 'light' ? '#f2f5f9' : '#0b0f17');
+  };
 
   const allOrgs = [
     ...(me?.org ? [me.org] : []),
@@ -140,6 +152,10 @@ export default function Layout() {
             {t('layout.proxyHint')} <span className="mono text-slate-400">api.instabox.sh</span>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {/* 主题切换 */}
+            <Button variant="ghost" className="!px-2" title={t('theme.switch')} onClick={toggleTheme}>
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+            </Button>
             {/* 语言切换 */}
             <Button variant="ghost" className="!px-2" title={t('lang.switch')}
               onClick={() => setLang(lang === 'zh' ? 'en' : 'zh')}>
@@ -178,6 +194,8 @@ export default function Layout() {
           {!hasKey ? <SetupGuide onOpen={() => setAccOpen(true)} /> : <Outlet />}
         </main>
       </div>
+
+      <CommandPalette />
 
       {/* 账号管理弹窗（多 Key） */}
       <Modal open={accOpen} onClose={() => setAccOpen(false)} title={t('layout.accounts')} width="max-w-xl">

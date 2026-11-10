@@ -43,6 +43,8 @@ export function NotificationBell() {
   const stateText = (ev: NotifyEvent) =>
     ev.kind === 'error'
       ? `${ev.machineName}: ${ev.message || ''}`
+      : ev.kind === 'alert'
+      ? `${ev.message || ''}`
       : `${ev.machineName}: ${ev.from} → ${ev.to}`;
 
   return (
@@ -83,7 +85,7 @@ export function NotificationBell() {
             <div className="max-h-80 divide-y divide-line/60 overflow-y-auto">
               {events.map((ev) => (
                 <div key={ev.id} className="flex items-start gap-2 px-3 py-2">
-                  <Badge value={ev.kind === 'error' ? 'error' : ev.to} className="mt-0.5 shrink-0" />
+                  <Badge value={ev.kind === 'error' ? 'error' : ev.kind === 'alert' ? 'pending' : ev.to} className="mt-0.5 shrink-0" />
                   <div className="min-w-0 flex-1">
                     <div className="break-all text-xs text-slate-300">{stateText(ev)}</div>
                     <div className="text-[10px] text-dim">{fmtTime(ev.at)}</div>

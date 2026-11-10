@@ -17,6 +17,7 @@ interface GlobalCtx {
   orgId: string | null;          // 上下文 org（默认个人 org）
   setOrgId: (id: string) => void;
   personalOrgId: string | null;
+  switchTo: (key: string) => void;
 }
 
 const Ctx = createContext<GlobalCtx>(null as unknown as GlobalCtx);
@@ -63,10 +64,15 @@ export function GlobalProvider({ children }: { children: React.ReactNode }) {
     setMe(null); setMeError(null); setOrgId(null);
   }, []);
 
+  const switchTo = useCallback((k: string) => {
+    updateKey(k);
+    void refreshMe();
+  }, [updateKey, refreshMe]);
+
   const personalOrgId = me?.org?.id ?? null;
 
   return (
-    <Ctx.Provider value={{ hasKey: !!key, key, updateKey, accounts, setAccounts, me, meError, refreshMe, orgId, setOrgId, personalOrgId }}>
+    <Ctx.Provider value={{ hasKey: !!key, key, updateKey, accounts, setAccounts, me, meError, refreshMe, orgId, setOrgId, personalOrgId, switchTo }}>
       {children}
     </Ctx.Provider>
   );

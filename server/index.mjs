@@ -73,6 +73,79 @@ const WS_HOST_SUFFIXES = ['.instabox.sh', '.instabox.tech', ...(process.env.ALLO
 const upstreamUrl = new URL(UPSTREAM);
 const agent = new https.Agent({ keepAlive: true, maxSockets: 64 });
 
+// ---------------------------------------------------------------- Webhook 收件箱
+// 接收 InstaBox webhook 推送（POST /hook），供 UI 直接查看事件，无需外部服务。
+// - 事件存内存 + 磁盘（data/hook-events.json），上限 200 条，正文截断 8KB
+// - 启用 CONSOLE_PASSWORD 时 /hook 要求 ?token=（AUTH_TOKEN 前 16 位），URL 从 UI 复制
+// - GET/DELETE /hook-events 需登录会话
+const HOOK_DIR = path.join(__dirname, '..', 'data');
+const HOOK_FILE = path.join(HOOK_DIR, 'hook-events.json');
+const HOOK_MAX = 200;
+let hookEvents = [];
+try { hookEvents = JSON.parse(fs.readFileSync(HOOK_FILE, 'utf8')); } catch { hookEvents = []; }
+function saveHookEvents() {
+  try {
+    fs.mkdirSync(HOOK_DIR, { recursive: true });
+    fs.writeFileSync(HOOK_FILE, JSON.stringify(hookEvents.slice(0, HOOK_MAX)));
+  } catch (e) { log('hook save fail:', e.message); }
+}
+const HOOK_TOKEN = AUTH_TOKEN ? AUTH_TOKEN.slice(0, 16) : '';
+
+function readBody(req, limit = 512 * 1024) {
+  return new Promise((resolve) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => { size += c.length; if (size <= limit) chunks.push(c); if (size > limit) req.destroy(); });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', () => resolve(''));
+  });
+}
+
+async function handleHook(req, res, pathname) {
+  if (req.method === 'POST' && pathname === '/hook') {
+    if (CONSOLE_PASSWORD) {
+      const u = new URL(req.url, 'http://x');
+      if (u.searchParams.get('token') !== HOOK_TOKEN) {
+        res.writeHead(401, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ error: { code: 'bad_hook_token', message: 'missing/invalid ?token=' } }));
+        return;
+      }
+    }
+    const body = await readBody(req, 64 * 1024);
+    let parsed = null;
+    try { parsed = JSON.parse(body); } catch { parsed = null; }
+    hookEvents.unshift({
+      id: `wh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      at: new Date().toISOString(),
+      event: parsed?.type || parsed?.event || 'unknown',
+      headers: {
+        signature: req.headers['webhook-signature'] || null,
+        'user-agent': req.headers['user-agent'] || null,
+      },
+      body: body.slice(0, 8192),
+    });
+    hookEvents = hookEvents.slice(0, HOOK_MAX);
+    saveHookEvents();
+    log('hook: 收到事件', hookEvents[0].event);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, received: hookEvents.length }));
+    return;
+  }
+  if ((pathname === '/hook-events') && (req.method === 'GET' || req.method === 'DELETE')) {
+    if (!authOk(req)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+      return;
+    }
+    if (req.method === 'DELETE') { hookEvents = []; saveHookEvents(); }
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ events: hookEvents, token: HOOK_TOKEN || null }));
+    return;
+  }
+  res.writeHead(404, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ error: { code: 'not_found', message: 'route not found' } }));
+}
+
 /** 转发到上游的请求头白名单（其余一律丢弃，避免 Host/Origin/Cookie 干扰） */
 const FWD_REQ_HEADERS = new Set([
   'x-api-key', 'authorization', 'content-type', 'idempotency-key',
@@ -297,7 +370,9 @@ function handleUpgrade(req, socket, head) {
 
 // ---------------------------------------------------------------- 启动
 const server = http.createServer((req, res) => {
+  const pathname = (req.url || '/').split('?')[0];
   if (req.url === '/auth' || req.url.startsWith('/auth?')) return handleAuth(req, res);
+  if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
   return serveStatic(req, res);
 });
