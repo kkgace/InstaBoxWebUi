@@ -1,11 +1,12 @@
 /** 设置：API Key、通知、MCP 配置生成器、代理状态、功能说明 */
 import { useState } from 'react';
-import { CheckCircle2, XCircle, Bell, Plug, Trash2 } from 'lucide-react';
+import { CheckCircle2, XCircle, Bell, Plug, Trash2, Send } from 'lucide-react';
 import { api, getApiKey, setApiKey, errText } from '@/api/client';
 import { useGlobal } from '@/state';
 import { useT } from '@/i18n';
 import { notifyPermission, requestNotifyPermission, getAlertRules, addAlertRule, removeAlertRule, toggleAlertRule, type AlertKind } from '@/utils/notify';
 import { getAudit, clearAudit } from '@/utils/audit';
+import { getFeishuConfig, saveFeishuConfig, type FeishuConfig } from '@/utils/notify';
 import { Card, Button, Badge, ErrorBox, OkBox, Field, Input, JsonView, CopyButton, Select, Table, Td } from '@/components/ui';
 import { fmtTime } from '@/utils/format';
 
@@ -102,6 +103,10 @@ export default function Settings() {
 
       <Card title={<span className="inline-flex items-center gap-1.5"><Plug size={15} /> {t('mcp.title')}</span>}>
         <McpGenerator />
+      </Card>
+
+      <Card title={<span className="inline-flex items-center gap-1.5"><Send size={15} /> {t('fs.title')}</span>}>
+        <FeishuCard />
       </Card>
 
       <Card title={<span className="inline-flex items-center gap-1.5"><Bell size={15} /> {t('al.title')}</span>}>
@@ -370,6 +375,73 @@ function AuditLog() {
           ))}
         </Table>
       )}
+    </div>
+  );
+}
+
+
+// ---------- 飞书推送 ----------
+function FeishuCard() {
+  const { t } = useT();
+  const [cfg, setCfg] = useState<FeishuConfig>(getFeishuConfig);
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const upd = (patch: Partial<FeishuConfig>) => {
+    const next = { ...cfg, ...patch };
+    setCfg(next);
+    saveFeishuConfig(next);
+    setOk(t('fs.saved'));
+    setTimeout(() => setOk(null), 1500);
+  };
+
+  const test = async () => {
+    if (!cfg.url.trim()) { setErr(t('fs.needUrl')); return; }
+    setBusy(true); setErr(null);
+    try {
+      const r = await fetch('/feishu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: cfg.url.trim(), secret: cfg.secret.trim(), payload: { msg_type: 'text', content: { text: 'InstaBox 控制台：测试消息 ✓' } } }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok && j?.code === 0 || (j?.StatusCode === 0 || j?.statusCode === 0)) setOk(t('fs.testOk'));
+      else setErr(`${t('fs.fail')}${j?.msg || j?.message || `HTTP ${r.status}`}`);
+    } catch (e) { setErr(`${t('fs.fail')}${errText(e)}`); }
+    setBusy(false);
+  };
+
+  const scope = (k: keyof Pick<FeishuConfig, 'onState' | 'onError' | 'onAlert' | 'onCooldown'>, label: string) => (
+    <label className="flex items-center gap-2 text-xs text-slate-300">
+      <input type="checkbox" checked={cfg[k]} onChange={(e) => upd({ [k]: e.target.checked })} className="accent-sky-500" /> {label}
+    </label>
+  );
+
+  return (
+    <div className="space-y-3 text-sm">
+      <p className="text-xs text-dim">{t('fs.desc')}</p>
+      <Field label={t('fs.url')}>
+        <Input value={cfg.url} onChange={(e) => upd({ url: e.target.value })} placeholder={t('fs.urlPh')} className="mono w-full" />
+      </Field>
+      <Field label={t('fs.secret')}>
+        <Input value={cfg.secret} onChange={(e) => upd({ secret: e.target.value })} className="mono w-full" type="password" />
+      </Field>
+      <div>
+        <div className="mb-1 text-xs font-medium text-dim">{t('fs.scope')}</div>
+        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {scope('onState', t('fs.onState'))}
+          {scope('onError', t('fs.onError'))}
+          {scope('onAlert', t('fs.onAlert'))}
+          {scope('onCooldown', t('fs.onCooldown'))}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <Button variant="primary" onClick={test} loading={busy}>{t('fs.test')}</Button>
+        {ok && <OkBox>{ok}</OkBox>}
+      </div>
+      <ErrorBox>{err}</ErrorBox>
+      <p className="text-[10px] text-dim">{t('fs.note')}</p>
     </div>
   );
 }

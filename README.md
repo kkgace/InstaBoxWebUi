@@ -23,6 +23,7 @@ A full-featured, dark-mode web console that brings **every API of [InstaBox](htt
 | **API console** | Browsable catalog of all 160 operations (generated from `openapi.yaml`) + generic request builder — covers every endpoint the UI doesn't have a page for |
 | **Notifications & alerts** | Sandbox state changes and errors → browser push notifications + in-app event center; **alert rules** (monthly cost cap, continuous-run limit) with a 6-hour cooldown |
 | **Webhook inbox** | Built-in receiver (`POST /hook`) — point InstaBox webhooks at the console and read the signed event stream right in the UI, no external service |
+| **Feishu/Lark push** | Sandbox events (state changes incl. auto-pause, errors, cooldown entries, alert rules) pushed to a Feishu group custom bot — proxy-forwarded with domain allowlist and optional HMAC signature |
 | **Cross-account board** | Every locally saved account pulled in parallel on one screen, with inline start/stop/pause/delete via per-account key override |
 | Settings | Multi-account API key management (add / switch / remove), proxy health, deployment guide |
 

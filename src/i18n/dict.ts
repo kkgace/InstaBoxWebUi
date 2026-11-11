@@ -355,6 +355,15 @@ export const dict = {
     'aud.title': '操作日志', 'aud.desc': '本地记录本浏览器发起的全部写操作（不含 GET），仅存于此浏览器。',
     'aud.empty': '暂无记录', 'aud.clear': '清空', 'aud.colPath': '路径', 'aud.colStatus': '状态',
 
+    // ---------- 飞书推送 ----------
+    'fs.title': '飞书推送', 'fs.desc': '把沙箱事件推送到飞书群（自定义机器人）。在飞书群里添加自定义机器人获取 Webhook 地址，粘贴到下面。',
+    'fs.url': '飞书机器人 Webhook URL', 'fs.urlPh': 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx',
+    'fs.secret': '签名校验密钥（可选，机器人开启签名安全设置时填写）',
+    'fs.scope': '推送范围', 'fs.onState': '状态变化（含自动暂停）', 'fs.onError': '沙箱错误',
+    'fs.onAlert': '告警规则触发', 'fs.onCooldown': '进入强制冷却（max_run 等）',
+    'fs.test': '发送测试消息', 'fs.testOk': '测试消息已发送（请查看飞书群）', 'fs.saved': '飞书配置已保存',
+    'fs.needUrl': '请先填写 Webhook URL', 'fs.fail': '推送失败（检查 URL/密钥/网络）：',
+    'fs.note': '推送经本地代理转发，仅允许飞书域名；Webhook URL 存于本浏览器。',
     // ---------- 状态 ----------
     'state.running': '运行中', 'state.starting': '启动中', 'state.creating': '创建中', 'state.resuming': '恢复中',
     'state.stopping': '停止中', 'state.suspending': '暂停中', 'state.stopped': '已停止', 'state.suspended': '已暂停',
@@ -731,6 +740,15 @@ export const dict = {
     'aud.title': 'Activity log', 'aud.desc': 'Every write request made from this browser (GET excluded), stored only here.',
     'aud.empty': 'No entries', 'aud.clear': 'Clear', 'aud.colPath': 'Path', 'aud.colStatus': 'Status',
 
+    // ---------- feishu ----------
+    'fs.title': 'Feishu / Lark push', 'fs.desc': 'Push sandbox events to a Feishu group chat (custom bot). Add a custom bot in your Feishu group, copy its webhook URL and paste it here.',
+    'fs.url': 'Feishu bot webhook URL', 'fs.urlPh': 'https://open.feishu.cn/open-apis/bot/v2/hook/xxx',
+    'fs.secret': 'Signature secret (optional — required when the bot has signature verification enabled)',
+    'fs.scope': 'Push scope', 'fs.onState': 'State changes (incl. auto-pause)', 'fs.onError': 'Sandbox errors',
+    'fs.onAlert': 'Alert rules firing', 'fs.onCooldown': 'Cooldown entered (max_run etc.)',
+    'fs.test': 'Send test message', 'fs.testOk': 'Test message sent (check your Feishu group)', 'fs.saved': 'Feishu config saved',
+    'fs.needUrl': 'Fill in the webhook URL first', 'fs.fail': 'Push failed (check URL/secret/network): ',
+    'fs.note': 'Pushes are forwarded by the local proxy, Feishu domains only; the webhook URL lives in this browser.',
     // ---------- states ----------
     'state.running': 'running', 'state.starting': 'starting', 'state.creating': 'creating', 'state.resuming': 'resuming',
     'state.stopping': 'stopping', 'state.suspending': 'pausing', 'state.stopped': 'stopped', 'state.suspended': 'paused',

@@ -369,10 +369,79 @@ function handleUpgrade(req, socket, head) {
 }
 
 // ---------------------------------------------------------------- 启动
+// ---------------------------------------------------------------- 飞书推送代理
+// POST /feishu {url, secret?, payload} → 转发到飞书自定义机器人。
+// URL 域白名单（open.feishu.cn / *.feishu.cn / *.larksuite.com）防 SSRF；
+// 提供 secret 时按飞书签名规范计算（timestamp\nsecret 为 key，空串为内容，HMAC-SHA256 → base64）。
+const FEISHU_HOSTS = new Set(['open.feishu.cn', 'feishu.cn', 'open.larksuite.com', 'larksuite.com']);
+
+async function handleFeishu(req, res) {
+  if (!authOk(req)) {
+    res.writeHead(401, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+    return;
+  }
+  if (req.method !== 'POST') {
+    res.writeHead(405, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'method_not_allowed', message: 'POST only' } }));
+    return;
+  }
+  const body = await readBody(req);
+  let url = '', secret = '', payload = '';
+  try {
+    const j = JSON.parse(body || '{}');
+    url = String(j.url || '');
+    secret = String(j.secret || '');
+    payload = j.payload ? (typeof j.payload === 'string' ? j.payload : JSON.stringify(j.payload)) : '';
+  } catch { /* ignore */ }
+  let target;
+  try { target = new URL(url); } catch {
+    res.writeHead(400, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'bad_url', message: 'invalid webhook url' } }));
+    return;
+  }
+  const host = target.hostname.toLowerCase();
+  if (target.protocol !== 'https:' || !(FEISHU_HOSTS.has(host) || [...FEISHU_HOSTS].some((h) => host.endsWith('.' + h)))) {
+    res.writeHead(403, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'host_not_allowed', message: 'only Feishu/Lark webhook hosts are allowed' } }));
+    return;
+  }
+  let finalPayload = payload || '{}';
+  if (secret) {
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const sign = crypto.createHmac('sha256', `${ts}\n${secret}`).update('').digest('base64');
+    try {
+      const j = JSON.parse(finalPayload);
+      finalPayload = JSON.stringify({ timestamp: ts, sign, ...j });
+    } catch { /* keep as-is */ }
+  }
+  const upReq = https.request(target, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(finalPayload) },
+    timeout: 15000,
+  }, (upRes) => {
+    const chunks = [];
+    upRes.on('data', (c) => chunks.push(c));
+    upRes.on('end', () => {
+      const text = Buffer.concat(chunks).toString('utf8').slice(0, 2000);
+      log('feishu →', upRes.statusCode, text.slice(0, 120));
+      res.writeHead(upRes.statusCode || 502, { 'content-type': 'application/json' });
+      res.end(text || '{}');
+    });
+  });
+  upReq.on('error', (err) => {
+    res.writeHead(502, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'feishu_forward_fail', message: err.message } }));
+  });
+  upReq.write(finalPayload);
+  upReq.end();
+}
+
 const server = http.createServer((req, res) => {
   const pathname = (req.url || '/').split('?')[0];
   if (req.url === '/auth' || req.url.startsWith('/auth?')) return handleAuth(req, res);
   if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
+  if (pathname === '/feishu') return handleFeishu(req, res);
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
   return serveStatic(req, res);
 });

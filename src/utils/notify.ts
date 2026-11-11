@@ -7,12 +7,65 @@ import type { Machine } from '@/api/types';
 export interface NotifyEvent {
   id: string;
   at: string;
-  kind: 'state' | 'error' | 'alert';
+  kind: 'state' | 'error' | 'alert' | 'cooldown';
   machineId: string;
   machineName: string;
   from?: string;
   to?: string;
   message?: string;
+}
+
+// ---------- 飞书推送通道 ----------
+export interface FeishuConfig {
+  url: string;
+  secret: string;
+  onState: boolean;     // 状态变化（含自动暂停 running→suspended）
+  onError: boolean;     // 沙箱错误
+  onAlert: boolean;     // 告警规则触发（费用/运行时长）
+  onCooldown: boolean;  // 进入强制冷却（max_run 等）
+}
+const FEISHU_KEY = 'instabox-ui.feishu';
+
+export function getFeishuConfig(): FeishuConfig {
+  try { return JSON.parse(localStorage.getItem(FEISHU_KEY) || 'null') || { url: '', secret: '', onState: true, onError: true, onAlert: true, onCooldown: true }; }
+  catch { return { url: '', secret: '', onState: true, onError: true, onAlert: true, onCooldown: true }; }
+}
+export function saveFeishuConfig(cfg: FeishuConfig) {
+  localStorage.setItem(FEISHU_KEY, JSON.stringify(cfg));
+}
+
+async function feishuNotify(ev: NotifyEvent) {
+  const cfg = getFeishuConfig();
+  if (!cfg.url) return;
+  const scopeOn = ev.kind === 'state' ? cfg.onState
+    : ev.kind === 'error' ? cfg.onError
+    : ev.kind === 'alert' ? cfg.onAlert
+    : ev.kind === 'cooldown' ? cfg.onCooldown
+    : false;
+  if (!scopeOn) return;
+  const en = getLang() === 'en';
+  let text: string;
+  if (ev.kind === 'state') {
+    text = en
+      ? `InstaBox: sandbox "${ev.machineName}" ${ev.from} → ${ev.to}`
+      : `InstaBox：沙箱「${ev.machineName}」${ev.from} → ${ev.to}`;
+    if (ev.to === 'suspended') text += en ? ' (auto-paused)' : '（已自动暂停）';
+  } else if (ev.kind === 'cooldown') {
+    text = en ? `InstaBox: sandbox "${ev.machineName}" is cooling down until ${ev.message}` : `InstaBox：沙箱「${ev.machineName}」进入强制冷却，至 ${ev.message}`;
+  } else if (ev.kind === 'error') {
+    text = en ? `InstaBox: sandbox "${ev.machineName}" error — ${ev.message || ''}` : `InstaBox：沙箱「${ev.machineName}」发生错误 — ${ev.message || ''}`;
+  } else {
+    text = `InstaBox: ${ev.message || ''}`;
+  }
+  try {
+    await fetch('/feishu', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: cfg.url, secret: cfg.secret, payload: { msg_type: 'text', content: { text } } }),
+    });
+  } catch (e) {
+    console.warn('feishu push failed', e);
+  }
 }
 
 // ---------- 告警规则 ----------
@@ -59,8 +112,7 @@ function fireAlert(kind: AlertKind, rule: AlertRule, message: string, onChange: 
     at: new Date().toISOString(),
     kind: 'alert', machineId: '', machineName: '', message,
   };
-  onChange(pushEvent(ev));
-  browserNotify(ev);
+  notifyAll(ev, onChange);
 }
 
 const EVT_KEY = 'instabox-ui.notify.events';
@@ -91,6 +143,13 @@ export function notifyPermission(): string {
   return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
 }
 
+/** 统一通知出口：站内事件 + 浏览器通知 + 飞书 */
+function notifyAll(ev: NotifyEvent, onChange: (events: NotifyEvent[]) => void) {
+  onChange(pushEvent(ev));
+  browserNotify(ev);
+  void feishuNotify(ev);
+}
+
 function browserNotify(ev: NotifyEvent) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const en = getLang() === 'en';
@@ -104,7 +163,7 @@ function browserNotify(ev: NotifyEvent) {
 }
 
 /** 已知状态快照：machineId → state */
-type KnownStates = Record<string, { name: string; state: string; hasError: boolean }>;
+type KnownStates = Record<string, { name: string; state: string; hasError: boolean; cooldownUntil?: string; cooldownReason?: string }>;
 
 function loadKnown(): KnownStates {
   try { return JSON.parse(localStorage.getItem(STATE_KEY) || '{}'); } catch { return {}; }
@@ -168,10 +227,21 @@ export function startNotifyPolling(onChange: (events: NotifyEvent[]) => void, in
     for (const m of machines) {
       const prev = known[m.id];
       const hasErr = !!m.lastError || m.state === 'error';
+      const cooling = !!(m.cooldownUntil && new Date(m.cooldownUntil).getTime() > Date.now());
       if (!prev) {
-        known[m.id] = { name: m.name, state: m.state, hasError: hasErr };
+        known[m.id] = { name: m.name, state: m.state, hasError: hasErr, cooldownUntil: cooling ? m.cooldownUntil || undefined : undefined, cooldownReason: m.cooldownReason };
         changed = true;
         continue;
+      }
+      // 进入强制冷却（新出现或冷却截止时间变化）
+      if (cooling && prev.cooldownUntil !== m.cooldownUntil) {
+        const en = getLang() === 'en';
+        const until = new Date(m.cooldownUntil!).toLocaleString();
+        notifyAll({
+          id: `cd-${m.id}-${m.cooldownUntil}`,
+          at: now, kind: 'cooldown', machineId: m.id, machineName: m.name,
+          message: `${until}${m.cooldownReason ? ` (${m.cooldownReason})` : ''}`,
+        }, onChange);
       }
       if (prev.state !== m.state) {
         const ev: NotifyEvent = {
@@ -179,19 +249,17 @@ export function startNotifyPolling(onChange: (events: NotifyEvent[]) => void, in
           at: now, kind: 'state', machineId: m.id, machineName: m.name,
           from: prev.state, to: m.state,
         };
-        onChange(pushEvent(ev));
-        browserNotify(ev);
+        notifyAll(ev, onChange);
       } else if (hasErr && !prev.hasError && m.lastError) {
         const ev: NotifyEvent = {
           id: `err-${m.id}-${now}`,
           at: now, kind: 'error', machineId: m.id, machineName: m.name,
           message: `${m.lastError.code}: ${m.lastError.message.slice(0, 120)}`,
         };
-        onChange(pushEvent(ev));
-        browserNotify(ev);
+        notifyAll(ev, onChange);
       }
-      if (prev.name !== m.name || prev.state !== m.state || prev.hasError !== hasErr) {
-        known[m.id] = { name: m.name, state: m.state, hasError: hasErr };
+      if (prev.name !== m.name || prev.state !== m.state || prev.hasError !== hasErr || prev.cooldownUntil !== (cooling ? m.cooldownUntil : undefined)) {
+        known[m.id] = { name: m.name, state: m.state, hasError: hasErr, cooldownUntil: cooling ? m.cooldownUntil || undefined : undefined, cooldownReason: m.cooldownReason };
         changed = true;
       }
     }
