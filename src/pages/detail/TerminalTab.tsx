@@ -1,4 +1,6 @@
-/** 终端：多标签会话 + 字体调节，每个会话独立 WS（access ticket → 子协议透传） */
+/** 终端：多标签会话 + 字体调节。
+ *  会话容器由代码创建并挂到常驻外层容器（不依赖 React 渲染时序），
+ *  避免"先查容器再渲染容器"的顺序问题。 */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { errText, wsProxyUrl } from '@/api/client';
@@ -7,14 +9,13 @@ import { useT } from '@/i18n';
 import { Button, Select, ErrorBox } from '@/components/ui';
 import type { Machine } from '@/api/types';
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-interface Session {
+interface SessionMeta {
   id: number;
   label: string;
-  term: { dispose: () => void; write: (d: Uint8Array) => void; writeln: (s: string) => void; focus: () => void; options: any; onData: (cb: (d: string) => void) => void; onResize: (cb: (d: { cols: number; rows: number }) => void) => void };
+  term: { dispose: () => void; write: (d: Uint8Array) => void; writeln: (s: string) => void; focus: () => void; options: Record<string, unknown>; onData: (cb: (d: string) => void) => void; onResize: (cb: (d: { cols: number; rows: number }) => void) => void };
   fit: { fit: () => void };
   ws: WebSocket | null;
-  host: HTMLDivElement | null;
+  div: HTMLDivElement;
   connected: boolean;
 }
 
@@ -22,44 +23,68 @@ let nextSessionId = 1;
 
 export default function TerminalTab({ m }: { m: Machine }) {
   const { t } = useT();
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const outerRef = useRef<HTMLDivElement>(null);
+  const [sessions, setSessions] = useState<{ id: number; label: string; connected: boolean }[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [cols, setCols] = useState('120');
   const [rows, setRows] = useState('32');
   const [fontSize, setFontSize] = useState('13');
-  const holdersRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const metaRef = useRef<Map<number, SessionMeta>>(new Map());
 
   const running = m.state === 'running';
   const active = sessions.find((s) => s.id === activeId);
 
-  // 卸载时关闭全部
+  // 卸载：关全部会话
   useEffect(() => {
-    const map = holdersRef.current;
+    const map = metaRef.current;
     return () => {
-      for (const s of sessionsRef.current) {
-        s.ws?.close();
-        s.term.dispose();
+      for (const meta of map.values()) {
+        try { meta.ws?.close(); } catch { /* ignore */ }
+        try { meta.term.dispose(); } catch { /* ignore */ }
       }
       map.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const sessionsRef = useRef<Session[]>([]);
-  useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
+
+  // 标签切换：显隐 + 自适应 + 聚焦
+  useEffect(() => {
+    for (const [id, meta] of metaRef.current) {
+      meta.div.style.display = id === activeId ? 'block' : 'none';
+      if (id === activeId) {
+        requestAnimationFrame(() => { meta.fit.fit(); meta.term.focus(); });
+      }
+    }
+  }, [activeId]);
+
+  const closeSession = useCallback((id: number) => {
+    const meta = metaRef.current.get(id);
+    if (meta) {
+      try { meta.ws?.close(); } catch { /* ignore */ }
+      try { meta.term.dispose(); } catch { /* ignore */ }
+      meta.div.remove();
+      metaRef.current.delete(id);
+    }
+    setSessions((ss) => {
+      const rest = ss.filter((s) => s.id !== id);
+      if (activeId === id) setActiveId(rest.length ? rest[rest.length - 1].id : null);
+      return rest;
+    });
+  }, [activeId]);
 
   const connect = async () => {
-    if (!running) return;
+    if (!running || !outerRef.current) return;
     setErr(null); setConnecting(true);
     try {
       const ticket = await machinesApi.access(m.id, 'terminal');
       const [{ Terminal }, { FitAddon }] = await Promise.all([import('@xterm/xterm'), import('@xterm/addon-fit')]);
 
       const id = nextSessionId++;
-      const host = holdersRef.current.get(id);
-      if (!host) { setErr('internal: host missing'); setConnecting(false); return; }
-      host.innerHTML = '';
+      const div = document.createElement('div');
+      div.style.height = '100%';
+      div.dataset.sid = String(id);
+      outerRef.current.appendChild(div);
 
       const term = new Terminal({
         cursorBlink: true,
@@ -70,19 +95,24 @@ export default function TerminalTab({ m }: { m: Machine }) {
       });
       const fit = new FitAddon();
       term.loadAddon(fit);
-      term.open(host);
+      term.open(div);
       fit.fit();
-      host.addEventListener('resize', () => fit.fit());
 
+      // 上游要求两个子协议：响应的 protocol 字段值 + 访问令牌
       const protos: string[] = [];
       if (ticket.protocol) protos.push(ticket.protocol);
       if (ticket.token) protos.push(`instabox-access-token.${ticket.token}`);
       const ws = new WebSocket(wsProxyUrl(ticket.url, protos.join(',')), protos);
       ws.binaryType = 'arraybuffer';
-      ws.onopen = () => setSessions((ss) => ss.map((s) => (s.id === id ? { ...s, connected: true } : s)));
+      ws.onopen = () => {
+        metaRef.current.get(id)!.connected = true;
+        setSessions((ss) => ss.map((s) => (s.id === id ? { ...s, connected: true } : s)));
+        term.focus();
+      };
       ws.onmessage = (ev) => term.write(new Uint8Array(ev.data as ArrayBuffer));
       ws.onclose = () => {
         term.writeln('\r\n\x1b[33m[' + t('term.closed') + ']\x1b[0m');
+        metaRef.current.get(id)!.connected = false;
         setSessions((ss) => ss.map((s) => (s.id === id ? { ...s, connected: false } : s)));
       };
       ws.onerror = () => setErr(t('term.wsFail'));
@@ -91,29 +121,18 @@ export default function TerminalTab({ m }: { m: Machine }) {
         if (ws.readyState === WebSocket.OPEN) ws.send(new TextEncoder().encode(`\x1b[8;${r};${c}t`));
       });
 
-      const sess: Session = { id, label: `#${id}`, term, fit, ws, host, connected: false };
-      setSessions((ss) => [...ss, sess]);
+      metaRef.current.set(id, { id, label: `#${id}`, term, fit, ws, div, connected: false });
+      setSessions((ss) => [...ss, { id, label: `#${id}`, connected: false }]);
       setActiveId(id);
-      setTimeout(() => { fit.fit(); term.focus(); }, 50);
     } catch (e) { setErr(errText(e)); }
     setConnecting(false);
   };
 
-  const closeSession = (id: number) => {
-    setSessions((ss) => {
-      const s = ss.find((x) => x.id === id);
-      if (s) { s.ws?.close(); s.term.dispose(); holdersRef.current.delete(id); }
-      const rest = ss.filter((x) => x.id !== id);
-      if (activeId === id) setActiveId(rest.length ? rest[rest.length - 1].id : null);
-      return rest;
-    });
-  };
-
   const applyFontSize = (fs: string) => {
     setFontSize(fs);
-    for (const s of sessions) {
-      s.term.options.fontSize = Number(fs) || 13;
-      s.fit.fit();
+    for (const meta of metaRef.current.values()) {
+      meta.term.options.fontSize = Number(fs) || 13;
+      if (meta.id === activeId) meta.fit.fit();
     }
   };
 
@@ -144,7 +163,7 @@ export default function TerminalTab({ m }: { m: Machine }) {
         <div className="flex flex-wrap items-center gap-1 border-b border-line pb-1">
           {sessions.map((s) => (
             <span key={s.id} className={`inline-flex items-center gap-1 rounded-t border-b-2 px-2 py-1 text-xs ${s.id === activeId ? 'border-sky-500 text-sky-400' : 'border-transparent text-dim hover:text-slate-200'}`}>
-              <button onClick={() => { setActiveId(s.id); setTimeout(() => { s.fit.fit(); s.term.focus(); }, 30); }}>{s.label}</button>
+              <button onClick={() => setActiveId(s.id)}>{s.label}</button>
               <span className={`inline-block size-1.5 rounded-full ${s.connected ? 'bg-emerald-400' : 'bg-slate-500'}`} />
               <button onClick={() => closeSession(s.id)} className="text-dim hover:text-red-400"><X size={11} /></button>
             </span>
@@ -152,22 +171,13 @@ export default function TerminalTab({ m }: { m: Machine }) {
         </div>
       )}
 
-      {/* 会话容器（隐藏非活动的） */}
+      {/* 常驻外层容器：各会话 div 由 connect() 创建挂入 */}
       <div className="overflow-hidden rounded-lg border border-line bg-bg p-1">
-        {sessions.length === 0 && <div className="flex h-[480px] items-center justify-center text-sm text-dim">{t('term.disconnected')}</div>}
-        {sessions.map((s) => (
-          <div
-            key={s.id}
-            data-session={s.id}
-            ref={(el) => {
-              if (el) holdersRef.current.set(s.id, el);
-              else holdersRef.current.delete(s.id);
-              s.host = el;
-            }}
-            className="h-[480px] w-full"
-            style={{ display: s.id === activeId ? 'block' : 'none' }}
-          />
-        ))}
+        <div ref={outerRef} className="h-[480px] w-full relative">
+          {sessions.length === 0 && (
+            <div className="flex h-full items-center justify-center text-sm text-dim">{t('term.disconnected')}</div>
+          )}
+        </div>
       </div>
     </div>
   );
