@@ -345,22 +345,7 @@ function handleUpgrade(req, socket, head) {
 
     log('ws:', t.host + t.pathname, 'sub=' + (subprotocols ? subprotocols.split(',').map(s => s.trim().split('.')[0]).join('|') : 'none'), 'origin=' + (req.headers.origin ? 'yes' : 'no'));
 
-    const pipe = (from, to) => {
-      from.on('message', (data, isBinary) => { if (to.readyState === WebSocket.OPEN) to.send(data, { binary: isBinary }); });
-      from.on('close', (code, reason) => {
-        log('ws-close:', t.host, 'code=' + code, 'reason=' + reason.toString().slice(0, 120));
-        // 关闭码清洗：1005/1006 等码禁止出现在网络上，直接用会让 ws 库抛
-        // "First argument must be a valid error code number" 并打死进程
-        const safeCode = (code === 1000 || (code >= 3000 && code <= 4999)) ? code : 1011;
-        if (to.readyState === WebSocket.OPEN) {
-          try { to.close(safeCode, reason.toString().slice(0, 100)); } catch { try { to.close(1000); } catch {} }
-        }
-      });
-      from.on('error', () => { try { to.close(1011, 'proxy error'); } catch { try { to.close(1000); } catch {} } });
-      from.on('ping', (d) => { if (to.readyState === WebSocket.OPEN) to.ping(d); });
-      from.on('pong', (d) => { if (to.readyState === WebSocket.OPEN) to.pong(d); });
-    };
-    up.on('open', () => { log('ws-open:', t.host); pipe(client, up); });
+    up.on('open', () => { log('ws-open:', t.host); pipeWs(client, up, t.host); });
     up.on('unexpected-response', (_req, resp) => {
       log('ws-reject:', t.host, 'upstream-status=' + resp.statusCode);
       client.close(1011, `upstream ${resp.statusCode}`);
@@ -369,8 +354,112 @@ function handleUpgrade(req, socket, head) {
       log('ws-err:', t.host, err.message);
       try { client.close(1011, err.message); } catch {}
     });
-    if (client.readyState === WebSocket.OPEN) pipe(up, client);
-    else client.on('open', () => pipe(up, client));
+    if (client.readyState === WebSocket.OPEN) pipeWs(up, client, t.host);
+    else client.on('open', () => pipeWs(up, client, t.host));
+  });
+}
+
+// 双向搬运 WebSocket 消息（/ws 与 /dsh 共用）
+function pipeWs(from, to, tag) {
+  from.on('message', (data, isBinary) => { if (to.readyState === WebSocket.OPEN) to.send(data, { binary: isBinary }); });
+  from.on('close', (code, reason) => {
+    log('ws-close:', tag, 'code=' + code, 'reason=' + reason.toString().slice(0, 120));
+    // 关闭码清洗：1005/1006 等码禁止出现在网络上，直接用会让 ws 库抛
+    // "First argument must be a valid error code number" 并打死进程
+    const safeCode = (code === 1000 || (code >= 3000 && code <= 4999)) ? code : 1011;
+    if (to.readyState === WebSocket.OPEN) {
+      try { to.close(safeCode, reason.toString().slice(0, 100)); } catch { try { to.close(1000); } catch {} }
+    }
+  });
+  from.on('error', () => { try { to.close(1011, 'proxy error'); } catch { try { to.close(1000); } catch {} } });
+  from.on('ping', (d) => { if (to.readyState === WebSocket.OPEN) to.ping(d); });
+  from.on('pong', (d) => { if (to.readyState === WebSocket.OPEN) to.pong(d); });
+}
+
+// ---------------------------------------------------------------- DSH 本机代理
+// 将本机 dsh web（默认 127.0.0.1:5080）挂到 /dsh/ 前缀下：REST 全量透传 + WebSocket 升级透传，
+// 浏览器到达时剥掉 /dsh 前缀再转发（dsh 用 --public-url https://<console>/dsh/ 启动即为该挂载模式）。
+// 为什么不直发 *.instabox.tech 边缘：边缘代理会剥自定义请求头，dsh 的实时长连接握手会失败；
+// 边缘 → 控制台代理这条链路已被整站（含终端 WS）验证可靠，因此 dsh 在此中转。
+// 鉴权双层：/dsh/* 与 /p/* 一样需要控制台登录会话，dsh 自身还有 token 栅栏。
+const DSH_PREFIX = '/dsh';
+const DSH_UPSTREAM = (process.env.DSH_UPSTREAM || 'http://127.0.0.1:5080').replace(/\/+$/, '');
+const dshUrl = new URL(DSH_UPSTREAM);
+const dshAgent = new http.Agent({ keepAlive: true, maxSockets: 64 });
+// 逐跳头不许复制（node 自己管理），Host 单独设置
+const HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
+
+function dshInnerPath(req) {
+  // /dsh → / ；/dsh/<rest> → /<rest>；查询串原样保留
+  const rest = req.url.slice(DSH_PREFIX.length);
+  return rest === '' || rest.startsWith('?') ? '/' + rest : rest;
+}
+
+function handleDsh(req, res) {
+  if (!authOk(req)) {
+    res.writeHead(401, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+    return;
+  }
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) {
+    if (HOP_HEADERS.has(k.toLowerCase()) || k.toLowerCase() === 'host') continue;
+    headers[k] = v;
+  }
+  // 关键：以公网权威主机呈现给 dsh（--public-url/--trusted-host 模式要求 Host 与浏览器 Origin 一致，
+  // 否则 dsh 的 /api browser-trust fence 会以 403 拒绝——实测 WS 握手必踩）
+  headers.host = process.env.DSH_PUBLIC_HOST || req.headers.host || dshUrl.host;
+  const upReq = http.request(
+    { protocol: 'http:', hostname: dshUrl.hostname, port: dshUrl.port || 80, method: req.method, path: dshInnerPath(req), headers, agent: dshAgent },
+    (upRes) => {
+      const out = {};
+      for (const [k, v] of Object.entries(upRes.headers)) {
+        if (HOP_HEADERS.has(k.toLowerCase())) continue;
+        out[k] = v;
+      }
+      res.writeHead(upRes.statusCode || 502, out);
+      upRes.pipe(res);
+      upRes.on('error', () => res.destroy());
+    },
+  );
+  upReq.on('error', (err) => {
+    log('dsh-upstream error:', req.method, dshInnerPath(req), err.message);
+    if (!res.headersSent) {
+      res.writeHead(502, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'dsh_upstream', message: `dsh 上游连接失败: ${err.message}（服务在跑吗？sudo systemctl status dsh-web）`, retryable: true } }));
+    } else res.destroy();
+  });
+  req.on('aborted', () => upReq.destroy());
+  req.pipe(upReq);
+}
+
+function handleDshUpgrade(req, socket, head) {
+  if (!authOk(req)) {
+    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+    return socket.destroy();
+  }
+  const innerPath = dshInnerPath(req);
+  wss.handleUpgrade(req, socket, head, (client) => {
+    const protoList = (req.headers['sec-websocket-protocol'] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    const upHeaders = { host: process.env.DSH_PUBLIC_HOST || req.headers.host || dshUrl.host };
+    if (req.headers.origin) upHeaders.origin = req.headers.origin;
+    if (req.headers.cookie) upHeaders.cookie = req.headers.cookie;
+    const target = `ws://${dshUrl.hostname}:${dshUrl.port || 80}${innerPath}`;
+    const up = protoList.length
+      ? new WebSocket(target, protoList, { headers: upHeaders, handshakeTimeout: 15000 })
+      : new WebSocket(target, { headers: upHeaders, handshakeTimeout: 15000 });
+    log('dsh-ws:', innerPath, 'host=' + upHeaders.host, 'sub=' + (protoList.join('|') || 'none'));
+    up.on('open', () => pipeWs(client, up, 'dsh' + innerPath));
+    up.on('unexpected-response', (_req, resp) => {
+      log('dsh-ws-reject:', innerPath, 'upstream-status=' + resp.statusCode);
+      try { client.close(1011, `upstream ${resp.statusCode}`); } catch {}
+    });
+    up.on('error', (err) => {
+      log('dsh-ws-err:', innerPath, err.message);
+      try { client.close(1011, err.message); } catch {}
+    });
+    if (client.readyState === WebSocket.OPEN) pipeWs(up, client, 'dsh' + innerPath);
+    else client.on('open', () => pipeWs(up, client, 'dsh' + innerPath));
   });
 }
 
@@ -449,9 +538,14 @@ const server = http.createServer((req, res) => {
   if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
   if (pathname === '/feishu') return handleFeishu(req, res);
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
+  if (pathname === DSH_PREFIX || pathname.startsWith(DSH_PREFIX + '/')) return handleDsh(req, res);
   return serveStatic(req, res);
 });
-server.on('upgrade', handleUpgrade);
+server.on('upgrade', (req, socket, head) => {
+  const pathname = (req.url || '/').split('?')[0];
+  if (pathname === DSH_PREFIX || pathname.startsWith(DSH_PREFIX + '/')) return handleDshUpgrade(req, socket, head);
+  return handleUpgrade(req, socket, head);
+});
 // 长轮询（wait=25s）与慢速上传需要更宽的超时
 server.requestTimeout = 0;
 server.headersTimeout = 120000;

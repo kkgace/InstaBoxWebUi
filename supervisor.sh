@@ -11,7 +11,7 @@ while true; do
     sleep 10
     continue
   fi
-  env PORT=3000 NODE_ENV=production node server/index.mjs >> console.log 2>&1
+  env PORT=3000 NODE_ENV=production DSH_PUBLIC_HOST=3000-m_demo0000000000000.instabox.tech node server/index.mjs >> console.log 2>&1
   echo "$(date -u +%FT%TZ) 服务退出(代码=$?)，5 秒后重启" >> console.log
   sleep 5
 done
