@@ -1,32 +1,33 @@
 @echo off
-rem DSH Web ä¸€é”®éš§é“ï¼šåŒå‡»å³å¯æ‰“å¼€ DeepSeek Harness UIï¼ˆæœ¬æœº -> æ²™ç®±ï¼‰
-rem å‰æï¼šåŒç›®å½• ssh.txt ç¬¬ä¸€è¡Œæ”¾ SSH å‘½ä»¤è¡Œï¼ˆä¸Ž deploy.sh ç›¸åŒæ ¼å¼ï¼‰
+rem DSH Web Ò»¼üËíµÀ£ºË«»÷ÔËÐÐ£¬×Ô¶¯´ò¿ª DeepSeek Harness UI£¨±¾»ú -> É³Ïä£©
+rem Ç°Ìá£ºÍ¬Ä¿Â¼ ssh.txt µÚÒ»ÐÐ·Å SSH ÃüÁîÐÐ£¨Óë deploy.sh ÏàÍ¬¸ñÊ½£©
+rem ×¢Òâ£º±¾ÎÄ¼þ±ØÐë±£´æÎª GBK(ANSI) ±àÂë + CRLF »»ÐÐ£¬ÖÐÎÄ²ÅÄÜÔÚ cmd Õý³£ÏÔÊ¾
 setlocal
 if not exist "%~dp0ssh.txt" (
-  echo [!] æœªæ‰¾åˆ° ssh.txt â€”â€” è¯·åœ¨åŒç›®å½•æ”¾ SSH å‘½ä»¤è¡Œ
+  echo [!] Î´ÕÒµ½ ssh.txt ¡ª¡ª ÇëÔÚÍ¬Ä¿Â¼·Å SSH ÃüÁîÐÐ
   pause
   exit /b 1
 )
 set /p SSHLINE=<"%~dp0ssh.txt"
 
-echo [1/3] å»ºç«‹éš§é“ localhost:5080 -^> æ²™ç®± 127.0.0.1:5080 ...
+echo [1/3] ½¨Á¢ËíµÀ localhost:5080 -^> É³Ïä 127.0.0.1:5080 ...
 start "dsh-tunnel" /min %SSHLINE% -N -o ExitOnForwardFailure=yes -L 5080:127.0.0.1:5080
 timeout /t 3 /nobreak >nul
 
-echo [2/3] èŽ·å–æœ€æ–°å¸¦ token çš„è®¿é—® URLï¼ˆdsh æ¯æ¬¡é‡å¯éƒ½ä¼šæ¢ tokenï¼‰...
+echo [2/3] »ñÈ¡×îÐÂ´ø token µÄ·ÃÎÊ URL£¨dsh Ã¿´ÎÖØÆô¶¼»á»» token£©...
 %SSHLINE% "sudo -n journalctl -u dsh-web.service --no-pager -n 8 | grep -oE 'http://127.0.0.1:5080/[a-zA-Z0-9_?=-]*' | tail -1" > "%TEMP%\dsh-url.txt"
 set /p URL=<"%TEMP%\dsh-url.txt"
 del "%TEMP%\dsh-url.txt" >nul 2>&1
 if "%URL%"=="" (
-  echo [!] æœªèƒ½èŽ·å– URL â€”â€” éš§é“çª—å£å·²å»ºç«‹ï¼Œä½†è¯·ç¡®è®¤æ²™ç®±ä¸ŠæœåŠ¡åœ¨è·‘ï¼š
+  echo [!] Î´ÄÜ»ñÈ¡ URL ¡ª¡ª ËíµÀ´°¿ÚÒÑ½¨Á¢£¬µ«ÇëÈ·ÈÏÉ³ÏäÉÏ·þÎñÔÚÅÜ£º
   echo     %SSHLINE% "sudo -n journalctl -u dsh-web.service -n 8"
   pause
   exit /b 1
 )
 
-echo [3/3] æ‰“å¼€æµè§ˆå™¨: %URL%
+echo [3/3] ´ò¿ªä¯ÀÀÆ÷: %URL%
 start "" "%URL%"
 echo.
-echo è¿žæŽ¥ç”±æœ€å°åŒ–çš„ "dsh-tunnel" çª—å£ç»´æŒï¼Œå…³é—­è¯¥çª—å£å³æ–­å¼€ã€‚
-echo æ³¨æ„ï¼šæ²™ç®±é‡å¯æˆ–æœåŠ¡é‡å¯åŽ token ä¼šå˜ â€”â€” é‡è·‘æœ¬è„šæœ¬å³å¯ã€‚
+echo Á¬½ÓÓÉ×îÐ¡»¯µÄ "dsh-tunnel" ´°¿ÚÎ¬³Ö£¬¹Ø±Õ¸Ã´°¿Ú¼´¶Ï¿ª¡£
+echo ×¢Òâ£ºÉ³ÏäÖØÆô»ò·þÎñÖØÆôºó token »á±ä ¡ª¡ª ÖØÅÜ±¾½Å±¾¼´¿É¡£
 pause
