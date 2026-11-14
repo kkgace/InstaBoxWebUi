@@ -71,6 +71,77 @@ function handleAuth(req, res) {
 }
 const WS_HOST_SUFFIXES = ['.instabox.sh', '.instabox.tech', ...(process.env.ALLOW_WS_HOSTS || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)];
 
+// ---------------------------------------------------------------- IP 放行名单
+// 设置 ALLOW_IPS（逗号分隔，支持 IPv4 CIDR 如 1.2.3.0/24）后，除 /healthz 与 /hook 外的
+// 所有请求（含静态页与 WebSocket 升级）必须来自名单内 IP。
+// 客户端 IP 优先取 X-Forwarded-For 最后一个值（最接近服务端的可信代理写入，防伪造链首段）；
+// 边缘代理是否透传 XFF 以 ip-gate 启动日志为准；缺失时退回 socket 地址。
+// 127.0.0.1/::1 恒放行（本机健康检查、部署探活）。
+const ALLOW_IPS = (process.env.ALLOW_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+function v4ToLong(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return null;
+  const [a, b, c, d] = m.slice(1).map(Number);
+  if ([a, b, c, d].some((n) => n > 255)) return null;
+  return ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
+}
+
+function clientIpOf(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const parts = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length) {
+      let ip = parts[parts.length - 1];
+      const m = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(ip);
+      if (m) ip = m[1];
+      return ip;
+    }
+  }
+  return (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+}
+
+function ipAllowed(ip) {
+  if (!ALLOW_IPS.length) return true;
+  const norm = String(ip || '').replace(/^::ffff:/, '');
+  if (norm === '127.0.0.1' || norm === '::1') return true;
+  const ipL = v4ToLong(norm);
+  for (const entry of ALLOW_IPS) {
+    if (entry === norm) return true;
+    if (entry.includes('/')) {
+      const [base, bitsRaw] = entry.split('/');
+      const bits = Number(bitsRaw);
+      const baseL = v4ToLong(base);
+      if (ipL == null || baseL == null || !(bits >= 0 && bits <= 32)) continue;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      if ((ipL & mask) === (baseL & mask)) return true;
+    } else {
+      const eL = v4ToLong(entry);
+      if (ipL != null && eL != null && eL === ipL) return true;
+    }
+  }
+  return false;
+}
+
+const seenClientKeys = new Set();
+function ipGateLog(req, ip, allowed) {
+  const key = ip + '|' + allowed;
+  if (seenClientKeys.has(key)) return;
+  seenClientKeys.add(key);
+  log('ip-gate:', 'client=' + ip, 'remote=' + (req.socket.remoteAddress || ''), 'xff=' + (req.headers['x-forwarded-for'] || '(none)'), 'allow=' + allowed);
+}
+
+function ipGate(req, res) {
+  if (!ALLOW_IPS.length) return true;
+  const ip = clientIpOf(req);
+  const allowed = ipAllowed(ip);
+  ipGateLog(req, ip, allowed);
+  if (allowed) return true;
+  res.writeHead(403, { 'content-type': 'application/json' });
+  res.end(JSON.stringify({ error: { code: 'ip_not_allowed', message: `来源 IP 不在放行名单（ALLOW_IPS=${ALLOW_IPS.join(',')}）` } }));
+  return false;
+}
+
 const upstreamUrl = new URL(UPSTREAM);
 const agent = new https.Agent({ keepAlive: true, maxSockets: 64 });
 
@@ -534,6 +605,9 @@ async function handleFeishu(req, res) {
 
 const server = http.createServer((req, res) => {
   const pathname = (req.url || '/').split('?')[0];
+  // /healthz 与 /hook 不做 IP 门：健康检查来自本机；/hook 自带 token 鉴权（平台 webhook 投递源不固定）
+  if (pathname === '/healthz') return serveStatic(req, res);
+  if (pathname !== '/hook' && !ipGate(req, res)) return;
   if (req.url === '/auth' || req.url.startsWith('/auth?')) return handleAuth(req, res);
   if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
   if (pathname === '/feishu') return handleFeishu(req, res);
@@ -543,6 +617,14 @@ const server = http.createServer((req, res) => {
 });
 server.on('upgrade', (req, socket, head) => {
   const pathname = (req.url || '/').split('?')[0];
+  if (ALLOW_IPS.length) {
+    const ip = clientIpOf(req);
+    if (!ipAllowed(ip)) {
+      ipGateLog(req, ip, false);
+      socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+      return socket.destroy();
+    }
+  }
   if (pathname === DSH_PREFIX || pathname.startsWith(DSH_PREFIX + '/')) return handleDshUpgrade(req, socket, head);
   return handleUpgrade(req, socket, head);
 });
