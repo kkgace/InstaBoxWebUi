@@ -348,9 +348,14 @@ function handleUpgrade(req, socket, head) {
       from.on('message', (data, isBinary) => { if (to.readyState === WebSocket.OPEN) to.send(data, { binary: isBinary }); });
       from.on('close', (code, reason) => {
         log('ws-close:', t.host, 'code=' + code, 'reason=' + reason.toString().slice(0, 120));
-        if (to.readyState === WebSocket.OPEN) to.close(code, reason.toString());
+        // 关闭码清洗：1005/1006 等码禁止出现在网络上，直接用会让 ws 库抛
+        // "First argument must be a valid error code number" 并打死进程
+        const safeCode = (code === 1000 || (code >= 3000 && code <= 4999)) ? code : 1011;
+        if (to.readyState === WebSocket.OPEN) {
+          try { to.close(safeCode, reason.toString().slice(0, 100)); } catch { try { to.close(1000); } catch {} }
+        }
       });
-      from.on('error', () => { try { to.close(1011, 'proxy error'); } catch {} });
+      from.on('error', () => { try { to.close(1011, 'proxy error'); } catch { try { to.close(1000); } catch {} } });
       from.on('ping', (d) => { if (to.readyState === WebSocket.OPEN) to.ping(d); });
       from.on('pong', (d) => { if (to.readyState === WebSocket.OPEN) to.pong(d); });
     };
@@ -453,4 +458,12 @@ server.headersTimeout = 120000;
 server.listen(PORT, () => {
   log(`InstaBox WebUI 代理已启动: http://localhost:${PORT}  →  ${UPSTREAM}${SERVER_KEY ? '（服务端注入 API Key）' : ''}`);
   if (!fs.existsSync(DIST)) log('提示: dist/ 不存在，开发模式请另开终端运行 npm run dev');
+});
+
+// 进程级兜底：代理服务容忍单个未捕获异常（打日志继续跑），避免 WS 边角情况打死整个服务
+process.on('uncaughtException', (err) => {
+  log('uncaughtException:', err.stack?.slice(0, 400) || err.message);
+});
+process.on('unhandledRejection', (reason) => {
+  log('unhandledRejection:', String(reason).slice(0, 400));
 });
