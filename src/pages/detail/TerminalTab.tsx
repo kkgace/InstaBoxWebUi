@@ -9,10 +9,11 @@ import { useT } from '@/i18n';
 import { Button, Select, ErrorBox } from '@/components/ui';
 import type { Machine } from '@/api/types';
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 interface SessionMeta {
   id: number;
   label: string;
-  term: { dispose: () => void; write: (d: Uint8Array) => void; writeln: (s: string) => void; focus: () => void; options: Record<string, unknown>; onData: (cb: (d: string) => void) => void; onResize: (cb: (d: { cols: number; rows: number }) => void) => void };
+  term: { dispose: () => void; write: (d: Uint8Array) => void; writeln: (s: string) => void; focus: () => void; options: any; onData: (cb: (d: string) => void) => void; onResize: (cb: (d: { cols: number; rows: number }) => void) => void };
   fit: { fit: () => void };
   ws: WebSocket | null;
   div: HTMLDivElement;
