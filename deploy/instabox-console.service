@@ -1,0 +1,14 @@
+[Unit]
+Description=InstaBox WebUI console (supervisor watchdog)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/workspace/console
+ExecStart=/bin/bash /data/workspace/console/supervisor.sh
+User=user
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -24,13 +24,21 @@ echo "==> 打包上传"
 tar czf /tmp/console-deploy.tar.gz dist server package.json supervisor.sh
 $SCP /tmp/console-deploy.tar.gz "$DEST:$CONSOLE_DIR-deploy.tar.gz"
 
+echo "==> 上传 systemd 服务单元"
+$SCP deploy/instabox-console.service "$DEST:/tmp/instabox-console.service" 2>/dev/null || true
+
 echo "==> 解压 + 安装依赖 + 启动"
 $SSH "cd /data/workspace && rm -rf $CONSOLE_DIR && mkdir -p $CONSOLE_DIR && \
   tar xzf $CONSOLE_DIR-deploy.tar.gz -C $CONSOLE_DIR && \
   cd $CONSOLE_DIR && npm install ws@8 --omit=dev --no-audit --no-fund >/dev/null 2>&1; \
-  (pkill -f '[s]upervisor\.sh$' 2>/dev/null || true); \
-  (pkill -f '[n]ode server/index.mjs' 2>/dev/null || true); sleep 1; \
-  (setsid bash supervisor.sh </dev/null >/dev/null 2>&1 &); sleep 2; \
+  if command -v systemctl >/dev/null 2>&1 && sudo -n install -m 644 /tmp/instabox-console.service /etc/systemd/system/instabox-console.service 2>/dev/null; then \
+    sudo -n systemctl daemon-reload && sudo -n systemctl enable --now instabox-console.service >/dev/null 2>&1; \
+    sudo -n systemctl restart instabox-console.service; \
+  else \
+    (pkill -f '[s]upervisor\.sh$' 2>/dev/null || true); \
+    (pkill -f '[n]ode server/index\.mjs' 2>/dev/null || true); sleep 1; \
+    (cd $CONSOLE_DIR && setsid bash supervisor.sh </dev/null >/dev/null 2>&1 &); \
+  fi; sleep 3; \
   curl -s http://localhost:3000/healthz"
 
 echo
