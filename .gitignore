@@ -6,6 +6,7 @@ dist/
 .env
 ssh.txt
 .secrets/
+.console-env
 tsconfig.tsbuildinfo
 # 研究阶段的临时文件
 api_inventory.txt

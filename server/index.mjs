@@ -33,6 +33,7 @@ const SERVER_KEY = process.env.INSTABOX_API_KEY || '';
 const CONSOLE_PASSWORD = process.env.CONSOLE_PASSWORD || '';
 const AUTH_COOKIE = 'console_auth';
 const AUTH_TOKEN = CONSOLE_PASSWORD ? crypto.createHash('sha256').update(`instabox-ui:${CONSOLE_PASSWORD}`).digest('hex') : '';
+if (!CONSOLE_PASSWORD) console.warn('[auth] CONSOLE_PASSWORD 未设置 —— 控制台处于无访问保护状态！');
 
 function authOk(req) {
   if (!CONSOLE_PASSWORD) return true;

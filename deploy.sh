@@ -21,15 +21,16 @@ echo "==> 构建（如未构建）"
 [ -d dist ] || npm run build
 
 echo "==> 打包上传"
-tar czf /tmp/console-deploy.tar.gz dist server package.json
+tar czf /tmp/console-deploy.tar.gz dist server package.json supervisor.sh
 $SCP /tmp/console-deploy.tar.gz "$DEST:$CONSOLE_DIR-deploy.tar.gz"
 
 echo "==> 解压 + 安装依赖 + 启动"
 $SSH "cd /data/workspace && rm -rf $CONSOLE_DIR && mkdir -p $CONSOLE_DIR && \
   tar xzf $CONSOLE_DIR-deploy.tar.gz -C $CONSOLE_DIR && \
   cd $CONSOLE_DIR && npm install ws@8 --omit=dev --no-audit --no-fund >/dev/null 2>&1; \
-  (pkill -f 'node server/index.mjs' 2>/dev/null || true); \
-  (nohup env PORT=3000 NODE_ENV=production node server/index.mjs > console.log 2>&1 &); sleep 2; \
+  (pkill -f '[s]upervisor\.sh$' 2>/dev/null || true); \
+  (pkill -f '[n]ode server/index.mjs' 2>/dev/null || true); sleep 1; \
+  (setsid bash supervisor.sh </dev/null >/dev/null 2>&1 &); sleep 2; \
   curl -s http://localhost:3000/healthz"
 
 echo
