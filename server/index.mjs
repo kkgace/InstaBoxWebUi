@@ -447,26 +447,70 @@ function pipeWs(from, to, tag) {
   from.on('pong', (d) => { if (to.readyState === WebSocket.OPEN) to.pong(d); });
 }
 
-// ---------------------------------------------------------------- DSH 本机代理
-// 将本机 dsh web（默认 127.0.0.1:5080）挂到 /dsh/ 前缀下：REST 全量透传 + WebSocket 升级透传，
-// 浏览器到达时剥掉 /dsh 前缀再转发（dsh 用 --public-url https://<console>/dsh/ 启动即为该挂载模式）。
-// 为什么不直发 *.instabox.tech 边缘：边缘代理会剥自定义请求头，dsh 的实时长连接握手会失败；
-// 边缘 → 控制台代理这条链路已被整站（含终端 WS）验证可靠，因此 dsh 在此中转。
+// ---------------------------------------------------------------- DSH 挂载
+// 把 dsh web 挂到路径前缀下：REST 全量透传 + WebSocket 升级透传，浏览器到达时剥掉前缀再转发
+// （dsh 用 --public-url https://<公网入口>/<前缀>/ 启动即为该挂载模式）。
+// 为什么不直发 *.instabox.tech 边缘：边缘会把 Host 重写为 127.0.0.1:<port>，而 dsh 的 /api
+// browser-trust fence 在请求带 Origin 时要求 Host 与 Origin 一致（见 dsh-client-connection
+// isTrustedApiRequest），直发边缘必 403；控制台补回公网权威 Host 后这条链路已被实测验证。
+// 内置挂载 /dsh → 本机 dsh（DSH_UPSTREAM，默认 127.0.0.1:5080）。
+// 远端挂载走 env：DSH_MOUNTS="/前缀=https://上游,..."（逗号分隔）。上游必须是带 Host 补头的
+// 前置代理（见 server/dsh-front.mjs）：边缘同样会改写 Host，front 把 Host 呈现为 loopback
+// authority（fence 直接放行）并剥掉 Origin，还天然让两个 dsh 的会话 cookie（名字含 Host
+// authority 哈希）互不覆盖。跨账号 dsh 挂载见 deploy-dsh-front.sh。
 // 鉴权双层：/dsh/* 与 /p/* 一样需要控制台登录会话，dsh 自身还有 token 栅栏。
-const DSH_PREFIX = '/dsh';
 const DSH_UPSTREAM = (process.env.DSH_UPSTREAM || 'http://127.0.0.1:5080').replace(/\/+$/, '');
-const dshUrl = new URL(DSH_UPSTREAM);
-const dshAgent = new http.Agent({ keepAlive: true, maxSockets: 64 });
 // 逐跳头不许复制（node 自己管理），Host 单独设置
 const HOP_HEADERS = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
 
-function dshInnerPath(req) {
-  // /dsh → / ；/dsh/<rest> → /<rest>；查询串原样保留
-  const rest = req.url.slice(DSH_PREFIX.length);
+function parseDshMounts() {
+  const mounts = [{ prefix: '/dsh', upstream: DSH_UPSTREAM }];
+  for (const entry of (process.env.DSH_MOUNTS || '').split(',')) {
+    const t = entry.trim();
+    if (!t) continue;
+    const eq = t.indexOf('=');
+    const prefix = (eq === -1 ? t : t.slice(0, eq)).trim();
+    const upstream = (eq === -1 ? '' : t.slice(eq + 1).trim()).replace(/\/+$/, '');
+    if (!prefix.startsWith('/') || prefix === '/dsh' || !upstream) {
+      log(`[dsh] 忽略非法 DSH_MOUNTS 项: ${t}（应为 /前缀=http(s)://上游）`);
+      continue;
+    }
+    if (mounts.some((m) => m.prefix === prefix)) continue;
+    mounts.push({ prefix, upstream, remote: true });
+  }
+  for (const m of mounts) {
+    try { m.url = new URL(m.upstream); } catch { log(`[dsh] 上游 URL 无法解析，跳过挂载 ${m.prefix}: ${m.upstream}`); }
+  }
+  const ok = mounts.filter((m) => m.url);
+  ok.sort((a, b) => b.prefix.length - a.prefix.length); // 长前缀优先，避免前缀互为前缀时误配
+  return ok;
+}
+const DSH_MOUNTS = parseDshMounts();
+const dshAgents = new Map(); // protocol → keepAlive agent，按挂载复用
+function dshAgentFor(protocol) {
+  if (!dshAgents.has(protocol)) dshAgents.set(protocol, new (protocol === 'https:' ? https : http).Agent({ keepAlive: true, maxSockets: 64 }));
+  return dshAgents.get(protocol);
+}
+function matchDshMount(pathname) {
+  return DSH_MOUNTS.find((m) => pathname === m.prefix || pathname.startsWith(m.prefix + '/')) || null;
+}
+function dshInnerPath(req, mount) {
+  // /前缀 → / ；/前缀/<rest> → /<rest>；查询串原样保留
+  const rest = req.url.slice(mount.prefix.length);
   return rest === '' || rest.startsWith('?') ? '/' + rest : rest;
 }
+function dshHostFor(req, mount) {
+  // 本地挂载：以公网权威主机呈现给 dsh（--public-url/--trusted-host 模式要求 Host 与浏览器 Origin 一致，
+  // 否则 dsh 的 /api browser-trust fence 会以 403 拒绝——实测 WS 握手必踩）。
+  // 远端挂载（上游是 instabox 边缘后面的 front 代理）：边缘按 Host 路由——必须呈上游自己的 authority。
+  // 实测坑：呈公网权威（控制台域名）会把请求经边缘路由回控制台自身，控制台看到边缘写入的
+  // 内部来源 XFF → IP 门 403 原样透传回来。front 会改写 Host，这里呈什么都到不了 dsh，
+  // 取上游 authority 只为让边缘路由正确。
+  if (mount.remote) return mount.url.host;
+  return process.env.DSH_PUBLIC_HOST || req.headers.host || mount.url.host;
+}
 
-function handleDsh(req, res) {
+function handleDsh(req, res, mount) {
   if (!authOk(req)) {
     res.writeHead(401, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
@@ -477,11 +521,9 @@ function handleDsh(req, res) {
     if (HOP_HEADERS.has(k.toLowerCase()) || k.toLowerCase() === 'host') continue;
     headers[k] = v;
   }
-  // 关键：以公网权威主机呈现给 dsh（--public-url/--trusted-host 模式要求 Host 与浏览器 Origin 一致，
-  // 否则 dsh 的 /api browser-trust fence 会以 403 拒绝——实测 WS 握手必踩）
-  headers.host = process.env.DSH_PUBLIC_HOST || req.headers.host || dshUrl.host;
-  const upReq = http.request(
-    { protocol: 'http:', hostname: dshUrl.hostname, port: dshUrl.port || 80, method: req.method, path: dshInnerPath(req), headers, agent: dshAgent },
+  headers.host = dshHostFor(req, mount);
+  const upReq = (mount.url.protocol === 'https:' ? https : http).request(
+    { hostname: mount.url.hostname, port: mount.url.port || (mount.url.protocol === 'https:' ? 443 : 80), method: req.method, path: dshInnerPath(req, mount), headers, agent: dshAgentFor(mount.url.protocol) },
     (upRes) => {
       const out = {};
       for (const [k, v] of Object.entries(upRes.headers)) {
@@ -494,43 +536,43 @@ function handleDsh(req, res) {
     },
   );
   upReq.on('error', (err) => {
-    log('dsh-upstream error:', req.method, dshInnerPath(req), err.message);
+    log('dsh-upstream error:', req.method, dshInnerPath(req, mount), err.message);
     if (!res.headersSent) {
       res.writeHead(502, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ error: { code: 'dsh_upstream', message: `dsh 上游连接失败: ${err.message}（服务在跑吗？sudo systemctl status dsh-web）`, retryable: true } }));
+      res.end(JSON.stringify({ error: { code: 'dsh_upstream', message: `dsh 上游连接失败: ${err.message}（上游 ${mount.upstream} 在跑吗？${mount.prefix === '/dsh' ? 'sudo systemctl status dsh-web' : '检查对端 front 代理与 dsh-web 服务'}）`, retryable: true } }));
     } else res.destroy();
   });
   req.on('aborted', () => upReq.destroy());
   req.pipe(upReq);
 }
 
-function handleDshUpgrade(req, socket, head) {
+function handleDshUpgrade(req, socket, head, mount) {
   if (!authOk(req)) {
     socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
     return socket.destroy();
   }
-  const innerPath = dshInnerPath(req);
+  const innerPath = dshInnerPath(req, mount);
   wss.handleUpgrade(req, socket, head, (client) => {
     const protoList = (req.headers['sec-websocket-protocol'] || '').split(',').map((s) => s.trim()).filter(Boolean);
-    const upHeaders = { host: process.env.DSH_PUBLIC_HOST || req.headers.host || dshUrl.host };
+    const upHeaders = { host: dshHostFor(req, mount) };
     if (req.headers.origin) upHeaders.origin = req.headers.origin;
     if (req.headers.cookie) upHeaders.cookie = req.headers.cookie;
-    const target = `ws://${dshUrl.hostname}:${dshUrl.port || 80}${innerPath}`;
+    const target = `${mount.url.protocol === 'https:' ? 'wss' : 'ws'}://${mount.url.host}${innerPath}`;
     const up = protoList.length
       ? new WebSocket(target, protoList, { headers: upHeaders, handshakeTimeout: 15000 })
       : new WebSocket(target, { headers: upHeaders, handshakeTimeout: 15000 });
-    log('dsh-ws:', innerPath, 'host=' + upHeaders.host, 'sub=' + (protoList.join('|') || 'none'));
-    up.on('open', () => pipeWs(client, up, 'dsh' + innerPath));
+    log('dsh-ws:', mount.prefix, innerPath, 'host=' + upHeaders.host, 'sub=' + (protoList.join('|') || 'none'));
+    up.on('open', () => pipeWs(client, up, mount.prefix + innerPath));
     up.on('unexpected-response', (_req, resp) => {
-      log('dsh-ws-reject:', innerPath, 'upstream-status=' + resp.statusCode);
+      log('dsh-ws-reject:', mount.prefix, innerPath, 'upstream-status=' + resp.statusCode);
       try { client.close(1011, `upstream ${resp.statusCode}`); } catch {}
     });
     up.on('error', (err) => {
-      log('dsh-ws-err:', innerPath, err.message);
+      log('dsh-ws-err:', mount.prefix, innerPath, err.message);
       try { client.close(1011, err.message); } catch {}
     });
-    if (client.readyState === WebSocket.OPEN) pipeWs(up, client, 'dsh' + innerPath);
-    else client.on('open', () => pipeWs(up, client, 'dsh' + innerPath));
+    if (client.readyState === WebSocket.OPEN) pipeWs(up, client, mount.prefix + innerPath);
+    else client.on('open', () => pipeWs(up, client, mount.prefix + innerPath));
   });
 }
 
@@ -612,7 +654,8 @@ const server = http.createServer((req, res) => {
   if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
   if (pathname === '/feishu') return handleFeishu(req, res);
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
-  if (pathname === DSH_PREFIX || pathname.startsWith(DSH_PREFIX + '/')) return handleDsh(req, res);
+  const dshMount = matchDshMount(pathname);
+  if (dshMount) return handleDsh(req, res, dshMount);
   return serveStatic(req, res);
 });
 server.on('upgrade', (req, socket, head) => {
@@ -625,7 +668,8 @@ server.on('upgrade', (req, socket, head) => {
       return socket.destroy();
     }
   }
-  if (pathname === DSH_PREFIX || pathname.startsWith(DSH_PREFIX + '/')) return handleDshUpgrade(req, socket, head);
+  const dshMount = matchDshMount(pathname);
+  if (dshMount) return handleDshUpgrade(req, socket, head, dshMount);
   return handleUpgrade(req, socket, head);
 });
 // 长轮询（wait=25s）与慢速上传需要更宽的超时
@@ -634,6 +678,7 @@ server.headersTimeout = 120000;
 
 server.listen(PORT, () => {
   log(`InstaBox WebUI 代理已启动: http://localhost:${PORT}  →  ${UPSTREAM}${SERVER_KEY ? '（服务端注入 API Key）' : ''}`);
+  for (const m of DSH_MOUNTS) log(`dsh 挂载: ${m.prefix}/ → ${m.upstream}`);
   if (!fs.existsSync(DIST)) log('提示: dist/ 不存在，开发模式请另开终端运行 npm run dev');
 });
 

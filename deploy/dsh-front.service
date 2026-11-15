@@ -1,0 +1,14 @@
+[Unit]
+Description=DSH front header-fix proxy (Host rewrite for instabox edge)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/workspace/dsh-front
+ExecStart=/usr/bin/env node dsh-front.mjs
+User=user
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
