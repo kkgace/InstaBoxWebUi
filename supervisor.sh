@@ -12,7 +12,7 @@ while true; do
     continue
   fi
   # DSH_MOUNTS：跨沙箱 dsh 挂载（/dsh-kk/ → 第二台沙箱的 front 代理公网入口，见 deploy-dsh-front.sh）
-  env PORT=3000 NODE_ENV=production DSH_PUBLIC_HOST=3000-m_demo0000000000000.instabox.tech DSH_MOUNTS=/dsh-kk=https://5081-m_demo1111111111111.instabox.tech ALLOW_IPS=198.51.100.20 node server/index.mjs >> console.log 2>&1
+  env PORT=3000 NODE_ENV=production DSH_PUBLIC_HOST=3000-m_demo0000000000000.instabox.tech DSH_MOUNTS=/dsh-kk=https://5080-m_demo1111111111111.instabox.tech ALLOW_IPS=198.51.100.20 node server/index.mjs >> console.log 2>&1
   echo "$(date -u +%FT%TZ) 服务退出(代码=$?)，5 秒后重启" >> console.log
   sleep 5
 done

@@ -6,6 +6,8 @@ After=network.target
 Type=simple
 WorkingDirectory=/data/workspace/dsh-front
 ExecStart=/usr/bin/env node dsh-front.mjs
+Environment=PORT=5080
+Environment=UP=http://127.0.0.1:5081
 User=user
 Restart=always
 RestartSec=5

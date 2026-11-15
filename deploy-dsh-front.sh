@@ -2,9 +2,10 @@
 # 一键把第二个账号沙箱上的 dsh 接入控制台：部署前置补 Host 代理 + 重配 dsh public-url + 发布端口
 #
 # 架构（instabox 边缘会把 Host 改写为 127.0.0.1:<port>，而 dsh 的 /api fence 要求
-# 有 Origin 时 Host 与 Origin 一致 —— 直发边缘必 403，所以必须前置补头，同 newapi-front）：
-#   控制台 /dsh-kk/ ──https──> 边缘(5081-<本机id>.instabox.tech) ──> front(:5081，补 Host/剥 Origin)
-#     ──> dsh(127.0.0.1:5080，--public-url 指向控制台 /dsh-kk/)
+# 有 Origin 时 Host 与 Origin 一致 —— 直发边缘必 403，所以必须前置补头，同 newapi-front；
+# 发布端口必须指向 front，不能直发 dsh）：
+#   控制台 /dsh-kk/ ──https──> 边缘(5080-<本机id>.instabox.tech) ──> front(:5080，补 Host/剥 Origin)
+#     ──> dsh(127.0.0.1:5081，--public-url 指向控制台 /dsh-kk/)
 #
 # 前置：ssh2.txt 里放第二个沙箱的 SSH 命令行（同 ssh.txt 格式，如 ssh -p 2222 ibssh_xxx@ssh.instabox.sh）
 # 可选环境变量：
@@ -35,8 +36,8 @@ DEST=$(echo "$SSH_LINE" | grep -oP '[\w.]+@[\w.-]+$')
 SSH="ssh -p $PORT -o BatchMode=yes $DEST"
 SCP="scp -P $PORT -o BatchMode=yes"
 CONSOLE_HOST=${CONSOLE_HOST:-3000-m_demo0000000000000.instabox.tech}
-DSH_PORT=${DSH_PORT:-5080}
-FRONT_PORT=${FRONT_PORT:-5081}
+DSH_PORT=${DSH_PORT:-5081}    # dsh 本体监听的 127.0.0.1 端口
+FRONT_PORT=${FRONT_PORT:-5080} # front 代理监听并发布的端口（发布端口必须 = front，不能 = dsh 直发）
 MOUNT_PATH=${MOUNT_PATH:-dsh-kk}
 DSH_VERSION=${DSH_VERSION:-0.2.2-rc.1}   # 与控制台沙箱同版本，fence 行为一致
 
@@ -83,6 +84,7 @@ PUB_URL_FLAG="--public-url https://$CONSOLE_HOST/$MOUNT_PATH/"
 if sudo -n test -f /etc/systemd/system/dsh-web.service && \
    sudo -n grep -q -- "--public-url https://$CONSOLE_HOST/$MOUNT_PATH/" /etc/systemd/system/dsh-web.service && \
    sudo -n grep -q "^ExecStart=.*$DSH_BIN" /etc/systemd/system/dsh-web.service && \
+   sudo -n grep -q -- "--port $DSH_PORT" /etc/systemd/system/dsh-web.service && \
    { case "$DSH_BIN" in /root/*) sudo -n grep -q "^User=root" /etc/systemd/system/dsh-web.service;; *) sudo -n grep -q "^User=user" /etc/systemd/system/dsh-web.service;; esac; }; then
   echo "dsh-web.service 已是目标配置，跳过重写"
 else
