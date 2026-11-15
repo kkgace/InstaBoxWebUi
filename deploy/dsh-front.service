@@ -8,6 +8,8 @@ WorkingDirectory=/data/workspace/dsh-front
 ExecStart=/usr/bin/env node dsh-front.mjs
 Environment=PORT=5080
 Environment=UP=http://127.0.0.1:5081
+# IP 白名单：沙箱1出口(console→front 链路) + 用户出口 + 迁移用云 VM
+Environment=ALLOW_IPS=198.51.100.22,198.51.100.20,203.0.113.10,203.0.113.11
 User=user
 Restart=always
 RestartSec=5

@@ -17,16 +17,75 @@
 // 会话 cookie 的名字含 Host authority 哈希，与控制台上其它 dsh 实例天然不冲突。
 // dsh 侧用 --public-url https://<控制台>/dsh-kk/ 启动即得到正确的入口 URL（trust 与否由 fence 决定）。
 //
-// 鉴权：本代理不做鉴权——到达它的请求都来自边缘（端口 URL 公开即达），dsh 自身的
-// launch-token + 会话 cookie 是唯一栅栏；控制台侧另有登录会话与 IP 名单双层门。
+// 鉴权：本代理不验 dsh 的令牌（dsh 自身的 launch-token + 会话 cookie 是唯一身份栅栏），
+// 但可用 ALLOW_IPS 做 IP 门（与 server/index.mjs 的 ipGate 同款逻辑）：边缘恒提供
+// X-Forwarded-For（实测），取最后一段为客户端 IP；127.0.0.1/::1 恒放行。
+// 白名单须包含控制台沙箱的出口 IP（/dsh-kk/ 链路：控制台 → 边缘 → 本代理）。
 //
-// 用法: env PORT=5080 UP=http://127.0.0.1:5081 node dsh-front.mjs   （需 npm i ws@8）
+// 用法: env PORT=5080 UP=http://127.0.0.1:5081 ALLOW_IPS=1.2.3.4,5.6.7.0/24 node dsh-front.mjs （需 npm i ws@8）
 
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 
 const PORT = Number(process.env.PORT || 5080);
 const UP = (process.env.UP || 'http://127.0.0.1:5081').replace(/\/+$/, '');
+const ALLOW_IPS = (process.env.ALLOW_IPS || '').split(',').map((s) => s.trim()).filter(Boolean);
+
+function v4ToLong(ip) {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(ip);
+  if (!m) return null;
+  const [a, b, c, d] = m.slice(1).map(Number);
+  if ([a, b, c, d].some((n) => n > 255)) return null;
+  return ((a << 24) >>> 0) + (b << 16) + (c << 8) + d;
+}
+function clientIpOf(req) {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) {
+    const parts = String(xff).split(',').map((s) => s.trim()).filter(Boolean);
+    if (parts.length) {
+      let ip = parts[parts.length - 1];
+      const m = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(ip);
+      if (m) ip = m[1];
+      return ip;
+    }
+  }
+  return (req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+}
+function ipAllowed(ip) {
+  if (!ALLOW_IPS.length) return true;
+  const norm = String(ip || '').replace(/^::ffff:/, '');
+  if (norm === '127.0.0.1' || norm === '::1') return true;
+  const ipL = v4ToLong(norm);
+  for (const entry of ALLOW_IPS) {
+    if (entry === norm) return true;
+    if (entry.includes('/')) {
+      const [base, bitsRaw] = entry.split('/');
+      const bits = Number(bitsRaw);
+      const baseL = v4ToLong(base);
+      if (ipL == null || baseL == null || !(bits >= 0 && bits <= 32)) continue;
+      const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+      if ((ipL & mask) === (baseL & mask)) return true;
+    } else {
+      const eL = v4ToLong(entry);
+      if (ipL != null && eL != null && eL === ipL) return true;
+    }
+  }
+  return false;
+}
+function ipGate(req, res) {
+  // res: HTTP 分支传 ServerResponse，upgrade 分支传原始 socket
+  if (!ALLOW_IPS.length || ipAllowed(clientIpOf(req))) return true;
+  const body = JSON.stringify({ error: { code: 'ip_not_allowed', message: `来源 IP 不在放行名单（ALLOW_IPS=${ALLOW_IPS.join(',')}）` } });
+  log('ip-gate 拒绝:', clientIpOf(req), req.url || '');
+  if (res instanceof http.ServerResponse) {
+    res.writeHead(403, { 'content-type': 'application/json' });
+    res.end(body);
+  } else {
+    res.write('HTTP/1.1 403 Forbidden\r\ncontent-type: application/json\r\ncontent-length: ' + Buffer.byteLength(body) + '\r\n\r\n' + body);
+    res.destroy();
+  }
+  return false;
+}
 const upstreamUrl = new URL(UP);
 // 呈现给 dsh 的 Host：默认取上游 authority（loopback 场景 fence 直接放行，且 cookie 名随之区分实例）
 const HOST_OVERRIDE = process.env.HOST_OVERRIDE || upstreamUrl.host;
@@ -69,6 +128,7 @@ function pipeWs(from, to, tag) {
 
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return; }
+  if (!ipGate(req, res)) return;
 
   const upReq = http.request(
     { hostname: upstreamUrl.hostname, port: upstreamUrl.port || 80, method: req.method, path: req.url, headers: buildHeaders(req) },
@@ -95,6 +155,7 @@ const server = http.createServer((req, res) => {
 
 // WebSocket 升级透传（dsh 实时长连接 /api/remote.mux 走这里），子协议原样带上
 server.on('upgrade', (req, socket, head) => {
+  if (!ipGate(req, socket)) return;
   wss.handleUpgrade(req, socket, head, (client) => {
     const protoList = (req.headers['sec-websocket-protocol'] || '').split(',').map((s) => s.trim()).filter(Boolean);
     const headers = buildHeaders(req);
