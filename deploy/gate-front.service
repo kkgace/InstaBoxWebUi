@@ -1,0 +1,18 @@
+[Unit]
+Description=Generic IP-gate front proxy for published apps
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/workspace/gate-front
+ExecStart=/usr/bin/env node gate-front.mjs
+Environment=PORT=3018
+Environment=UP=http://127.0.0.1:3019
+# IP 白名单：沙箱1出口(keepalive ping) + 用户出口 + 迁移用云 VM
+Environment=ALLOW_IPS=198.51.100.22,198.51.100.20,203.0.113.10,203.0.113.11
+User=user
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

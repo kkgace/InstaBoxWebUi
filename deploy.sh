@@ -10,6 +10,13 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 SSH_LINE=$(cat ssh.txt | head -1 | xargs)
+# 兼容 ssh://user@host:port URL 格式（instabox 面板复制的）→ CLI 格式
+case "$SSH_LINE" in
+  ssh://*)
+    DEST=$(echo "$SSH_LINE" | sed -E 's|^ssh://([^/@]+@[^/:]+).*|\1|')
+    PORT=$(echo "$SSH_LINE" | sed -E 's|^ssh://[^/@]+@[^/:]+:([0-9]+).*|\1|'); PORT=${PORT:-22}
+    SSH_LINE="ssh -p $PORT $DEST" ;;
+esac
 # 解析 ssh -p PORT USER@HOST
 PORT=$(echo "$SSH_LINE" | grep -oP '(?<=-p )\d+' || echo 22)
 DEST=$(echo "$SSH_LINE" | grep -oP '[\w.]+@[\w.-]+$')
