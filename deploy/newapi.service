@@ -1,0 +1,14 @@
+[Unit]
+Description=new-api relay + front header-inject proxy (supervisor watchdog)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/workspace/newapi
+ExecStart=/bin/bash /data/workspace/newapi/newapi-supervisor.sh
+User=user
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
