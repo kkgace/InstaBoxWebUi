@@ -93,10 +93,48 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > URL 在沙箱运行期间有效且形式固定。为在沙箱重启后自动恢复，可把下面的自启片段放进沙箱的 `~/.bashrc`——每次登录（SSH 或 dashboard 终端）自动拉起服务：
 >
 > ```bash
-> if [ -d /data/workspace/console ] && ! pgrep -f "[n]ode server/index.mjs" >/dev/null 2>&1; then
+> if [ -d /data/workspace/console ] && ! pgrep -f "[n]ode server/index\.mjs" >/dev/null 2>&1; then
 >   (cd /data/workspace/console && setsid env PORT=3000 NODE_ENV=production node server/index.mjs > console.log 2>&1 < /dev/null &) 2>/dev/null
 > fi
 > ```
+
+## 部署到自有云主机（推荐：不再受沙箱闲置暂停 / max-run 限制）
+
+沙箱版控制台受免费版策略约束（闲置 30 分钟自动暂停、max-run 连续运行硬顶、SSH 令牌 7 天过期）。把控制台部署到自己的 VPS 上就没有这些限制了。
+
+**前提**：本机 `~/.ssh/config` 里有目标主机别名（免密登录 + sudo 免密）；目标机已装 nginx 并有自己的域名证书。
+
+```bash
+# 1) 目标机别名（示例：复制已有隧道条目，去掉 LocalForward）
+#    Host sg-ck-ssh
+#        HostName 203.0.113.10
+#        Port 22
+#        User ubuntu
+#        IdentityFile ~/.ssh/id_ed25519
+#        IdentitiesOnly yes
+
+# 2) 一键部署（构建 → 上传 → 装 Node → systemd → nginx vhost → 健康检查）
+SSH_HOST=sg-ck-ssh \
+PUBLIC_HOST=console.example.com NGINX_PORT=8005 CONSOLE_PORT=3010 \
+ALLOW_IPS=你的出口IP \
+DSH_UPSTREAM= https://5082-<沙箱1机器ID>.instabox.tech \
+DSH_MOUNTS=/dsh-kk=https://5080-<沙箱2机器ID>.instabox.tech \
+bash deploy-vm-console.sh
+```
+
+部署后的形态：
+
+| 位置 | 内容 |
+|---|---|
+| `/data/instabox-console/` | 应用（`dist/` `server/` `package.json` `supervisor-vm.sh`） |
+| `/data/instabox-console-secrets/.console-env` | 运行期配置（密码 / IP 白名单 / DSH 挂载），`chmod 600`，**在部署目录之外**——重部署不会清掉 |
+| `127.0.0.1:3010` | node 进程（`HOST=127.0.0.1` 只绑回环，只有 nginx 能触达 → 客户端无法伪造 `X-Forwarded-For` 绕过 IP 门） |
+| `instabox-console.service` | systemd 单元（`User=ubuntu`，`Restart=always`），看门狗 `supervisor-vm.sh` 负责拉起 node |
+| nginx vhost | `deploy/nginx/instabox-console-8005.conf`，复用已有证书，WebSocket / SSE 不缓冲 |
+
+对外地址：`https://<域名>:<端口>/`（首次部署脚本会生成 16 字节随机密码并打印；改密码只需编辑 `.console-env` 后 `sudo systemctl restart instabox-console`）。
+
+**DSH 挂载要点**：控制台的 `/dsh` 默认指向本机 dsh；跨沙箱要用另一台沙箱的 dsh，必须先在那台沙箱上装 `dsh-front`（前置补 Host 代理）并发布端口，再把它的公网入口写进 `DSH_UPSTREAM`。边缘按 Host 路由，`/dsh` 指向远端时控制台会按远端挂载处理（呈上游自己的 authority），否则会被边缘路由回控制台自身形成自指循环。
 
 ## Docker Compose
 

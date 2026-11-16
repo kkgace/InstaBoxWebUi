@@ -1,0 +1,18 @@
+[Unit]
+Description=DSH front header-fix proxy for sandbox1 (127.0.0.1:5082 -> 127.0.0.1:5080)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/workspace/dsh-front
+ExecStart=/usr/bin/env node dsh-front.mjs
+Environment=PORT=5082
+Environment=UP=http://127.0.0.1:5080
+# IP 白名单：沙箱1出口 + 用户出口 + 迁移用云 VM（云主机上的控制台走这条链路）
+Environment=ALLOW_IPS=198.51.100.22,198.51.100.20,203.0.113.10,203.0.113.11
+User=user
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

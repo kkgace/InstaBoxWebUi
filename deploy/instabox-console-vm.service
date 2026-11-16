@@ -1,0 +1,14 @@
+[Unit]
+Description=InstaBox WebUI console (supervisor watchdog, cloud VM)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/data/instabox-console
+ExecStart=/bin/bash /data/instabox-console/supervisor-vm.sh
+User=ubuntu
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -26,6 +26,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
 const PORT = Number(process.env.PORT || (process.env.NODE_ENV === 'production' ? 3000 : 8787));
+// 监听地址：默认所有网卡（沙箱部署经端口发布暴露）；只经 nginx 对外时设为 127.0.0.1，
+// 这样直连服务的路径不存在，客户端也无法伪造 X-Forwarded-For 绕过 ALLOW_IPS。
+const HOST = process.env.HOST || '';
 const UPSTREAM = (process.env.INSTABOX_API || 'https://api.instabox.sh').replace(/\/+$/, '');
 const SERVER_KEY = process.env.INSTABOX_API_KEY || '';
 // 访问保护：设置 CONSOLE_PASSWORD 后，/p/* 与 /ws 需要登录（静态资源放行以便加载登录页）。
@@ -481,6 +484,12 @@ function parseDshMounts() {
   for (const m of mounts) {
     try { m.url = new URL(m.upstream); } catch { log(`[dsh] 上游 URL 无法解析，跳过挂载 ${m.prefix}: ${m.upstream}`); }
   }
+  // 内置 /dsh 指向远端（如另一台沙箱的 dsh-front 公网入口）时按远端挂载处理：
+  // InstaBox 边缘按 Host 路由，本地挂载分支会呈 DSH_PUBLIC_HOST（控制台自己的 authority），
+  // 边缘会据此把请求路由回控制台自身形成自指循环（与远端挂载同一个坑，见 dshHostFor）。
+  // 主机是 loopback 时仍是本地挂载，沙箱部署行为不变。
+  const builtin = mounts.find((m) => m.prefix === '/dsh');
+  if (builtin?.url && !/^(localhost|127\.0\.0\.1|\[::1\])$/i.test(builtin.url.hostname)) builtin.remote = true;
   const ok = mounts.filter((m) => m.url);
   ok.sort((a, b) => b.prefix.length - a.prefix.length); // 长前缀优先，避免前缀互为前缀时误配
   return ok;
@@ -676,8 +685,8 @@ server.on('upgrade', (req, socket, head) => {
 server.requestTimeout = 0;
 server.headersTimeout = 120000;
 
-server.listen(PORT, () => {
-  log(`InstaBox WebUI 代理已启动: http://localhost:${PORT}  →  ${UPSTREAM}${SERVER_KEY ? '（服务端注入 API Key）' : ''}`);
+server.listen(PORT, HOST, () => {
+  log(`InstaBox WebUI 代理已启动: http://${HOST || 'localhost'}:${PORT}  →  ${UPSTREAM}${SERVER_KEY ? '（服务端注入 API Key）' : ''}`);
   for (const m of DSH_MOUNTS) log(`dsh 挂载: ${m.prefix}/ → ${m.upstream}`);
   if (!fs.existsSync(DIST)) log('提示: dist/ 不存在，开发模式请另开终端运行 npm run dev');
 });

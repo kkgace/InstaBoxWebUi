@@ -98,6 +98,44 @@ ssh -p 2222 <token>@ssh.instabox.sh \
 > fi
 > ```
 
+## Deploy to your own cloud server (recommended)
+
+The sandbox deployment inherits the free-plan limits: 30-minute idle auto-pause, a hard `maxRunMinutes` ceiling, and 7-day SSH tokens. Running the console on your own VPS removes all of them.
+
+**Prerequisites**: a host alias in `~/.ssh/config` (key-based login + passwordless sudo), nginx on the target machine, and a certificate for a hostname you control.
+
+```bash
+# 1) Host alias (copy an existing tunnel entry, drop LocalForward)
+#    Host sg-ck-ssh
+#        HostName 203.0.113.10
+#        Port 22
+#        User ubuntu
+#        IdentityFile ~/.ssh/id_ed25519
+#        IdentitiesOnly yes
+
+# 2) One-shot deploy (build → upload → install Node → systemd → nginx vhost → health check)
+SSH_HOST=sg-ck-ssh \
+PUBLIC_HOST=console.example.com NGINX_PORT=8005 CONSOLE_PORT=3010 \
+ALLOW_IPS=your.egress.ip \
+DSH_UPSTREAM=https://5082-<sandbox1-machine-id>.instabox.tech \
+DSH_MOUNTS=/dsh-kk=https://5080-<sandbox2-machine-id>.instabox.tech \
+bash deploy-vm-console.sh
+```
+
+Resulting layout:
+
+| Where | What |
+|---|---|
+| `/data/instabox-console/` | the app (`dist/` `server/` `package.json` `supervisor-vm.sh`) |
+| `/data/instabox-console-secrets/.console-env` | runtime config (password / IP allowlist / DSH mounts), `chmod 600`, **outside the deploy dir** so redeploys keep it |
+| `127.0.0.1:3010` | the node process (`HOST=127.0.0.1` binds loopback only, so only nginx can reach it — clients cannot spoof `X-Forwarded-For` to bypass the IP gate) |
+| `instabox-console.service` | systemd unit (`User=ubuntu`, `Restart=always`); the `supervisor-vm.sh` watchdog restarts node |
+| nginx vhost | `deploy/nginx/instabox-console-8005.conf`, reuses your existing certificate, WebSocket/SSE unbuffered |
+
+Public URL: `https://<host>:<port>/`. The first deploy generates a random 16-byte password and prints it; to change it later, edit `.console-env` and run `sudo systemctl restart instabox-console`.
+
+**DSH mounts**: `/dsh` points at a local dsh by default. To reach a dsh on another sandbox you must first install `dsh-front` (the Host-rewriting proxy) there and publish its port, then point `DSH_UPSTREAM` at that public entry. The edge routes by Host, so a remote `/dsh` upstream is treated as a remote mount (the console presents the upstream's own authority) — otherwise the edge routes the request back to the console itself and the request deadlocks on itself.
+
 ## Docker Compose
 
 ### Option A — prebuilt image (recommended, no clone / no build)
