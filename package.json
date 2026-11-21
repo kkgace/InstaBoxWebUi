@@ -1,9 +1,30 @@
 {
   "name": "instabox-ui",
-  "private": true,
-  "version": "1.0.0",
+  "version": "1.3.0",
   "type": "module",
-  "description": "InstaBox WebUI 控制台 — 把 api.instabox.sh 的全部功能搬进浏览器",
+  "description": "InstaBox WebUI Console — bring every api.instabox.sh operation into the browser (sandboxes, terminal, desktop VNC, files, ports, SSH, snapshots, secrets, webhooks, monitoring)",
+  "license": "MIT",
+  "author": "kkgace",
+  "homepage": "https://github.com/kkgace/InstaBoxWebUi#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kkgace/InstaBoxWebUi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kkgace/InstaBoxWebUi/issues"
+  },
+  "keywords": [
+    "instabox",
+    "sandbox",
+    "console",
+    "webui",
+    "react",
+    "vite",
+    "reverse-proxy",
+    "websocket",
+    "terminal",
+    "vnc"
+  ],
   "engines": {
     "node": ">=20"
   },
@@ -13,7 +34,8 @@
     "start": "node server/index.mjs",
     "lint": "eslint src server",
     "test": "vitest run",
-    "gen:catalog": "python scripts/gen_catalog.py"
+    "gen:catalog": "python scripts/gen_catalog.py",
+    "package": "bash scripts/package.sh"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

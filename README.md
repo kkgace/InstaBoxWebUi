@@ -6,6 +6,18 @@
 
 A full-featured, dark-mode web console that brings **every API of [InstaBox](https://instabox.sh/docs)** (`api.instabox.sh`, 160 operations) into the browser — sandboxes, terminal, desktop, files, ports, SSH, snapshots, secrets, webhooks, monitoring and usage. Works with your API key only; no CLI, no SSH client required.
 
+## Screenshots
+
+| Dashboard | Web terminal |
+| --- | --- |
+| ![Dashboard](docs/screenshots/01-dashboard.png) | ![Terminal](docs/screenshots/14-terminal.png) |
+
+| Sandbox detail (13 tabs) | VNC desktop |
+| --- | --- |
+| ![Sandbox detail](docs/screenshots/13-sandbox-overview.png) | ![Desktop](docs/screenshots/16-desktop.png) |
+
+More in [`docs/screenshots/`](docs/screenshots): matrix view, templates, ports, snapshots, secrets, webhooks, webhook inbox, exports, usage, API console, settings, file manager.
+
 ## Features
 
 | Module | Capabilities |
@@ -175,10 +187,35 @@ docker run -d -p 3000:3000 --restart unless-stopped --name instabox-ui instabox-
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | 3000 (prod) / 8787 (dev) | Listen port |
+| `HOST` | 127.0.0.1 on cloud deployments | Bind address — bind to loopback behind nginx so the IP allowlist cannot be spoofed via XFF |
 | `INSTABOX_API` | https://api.instabox.sh | Upstream API |
 | `INSTABOX_API_KEY` | — | Server-injected key when the client sends none |
 | `CONSOLE_PASSWORD` | — | **Access password for the console** — when set, `/p/*` and `/ws` require a login (the UI shows a password screen); static assets stay open so the login page can load. Cookie session lasts 30 days |
+| `ALLOW_IPS` | — (off) | Client IP allowlist, comma-separated IPv4/IPv6 CIDRs (evaluated on the last XFF hop). `/healthz` and `/hook` are exempt |
 | `ALLOW_WS_HOSTS` | — | Extra allowed WebSocket target domain suffixes (comma-separated) |
+| `DSH_PUBLIC_HOST` | — | Public `Host[:Port]` authority used by the built-in `/dsh` mount |
+| `DSH_UPSTREAM` | http://127.0.0.1:5080 | Upstream of the built-in `/dsh` mount |
+| `DSH_MOUNTS` | — | Extra mounts, `prefix=https://upstream`, comma-separated |
+| `KEEPALIVE` / `KEEPALIVE_MODE` | 1 / `use` | Activity-lease probe (see [Keepalive semantics](#keepalive-semantics-free-tier)); modes: `use` (follow real usage) / `always` / `off` |
+| `KEEPALIVE_USE_WINDOW` | 1200 | Renew leases only when real usage happened within this many seconds (keep below the 1800 s idle threshold) |
+| `KEEPALIVE_INTERVAL` / `KEEPALIVE_LEASE_SEC` | 120 / 600 | Renewal tick and per-lease TTL (30–3600) |
+| `KEEPALIVE_WAKE` | 0 | `1` = also lease paused machines (wakes them) |
+| `KEEPALIVE_PERSIST` / `KEEPALIVE_FILE` | 1 / `/data/instabox-console-secrets/keepalive-keys.json` | Persist learned account keys (chmod 0600) |
+| `KEEPALIVE_PREEMPT` | 0 | `1` = proactively suspend an idle machine near the end of its run (see keepalive semantics) |
+| `KEEPALIVE_PREEMPT_REMAIN` / `_IDLE` / `_CPU` | 15 / 20 / 5 | Min remaining run minutes / min idle minutes / CPU % threshold |
+
+Endpoints the probe adds: `GET /keepalive` (status), `POST /keepalive/tick` (manual tick), `POST /cooldown/reset` (reset the max-run cooldown ladder for one machine).
+
+## Keepalive semantics (free tier)
+
+Why not renew a lease forever? InstaBox's free tier has two independent timers, and a lease only delays one of them:
+
+- **Idle pause** — 30 min without usage. Fixed, and **cooldown-free** — after it fires, the next wake is instantly usable. An activity lease delays it, but the lease itself does *not* count as "usage".
+- **Max-run** — each run starts at 120 min and grows up to 480 min with real usage; when it ends, a **cooldown ladder** escalates with consecutive max-runs: 1st ≈ 5–20 min, 2nd ≈ 60–75 min, 3rd+ ≈ 120–135 min.
+
+The default `KEEPALIVE_MODE=use` therefore renews a lease only when **real usage** (exec / files / ports / desktop / terminal / SSH — listing does not count) happened inside `KEEPALIVE_USE_WINDOW`; otherwise it releases the lease and lets the machine idle-pause cleanly, resetting the ladder to zero. `KEEPALIVE_PREEMPT=1` adds a gentler exit: when the run is about to expire but the machine has actually been idle (CPU < 5 %), it suspends proactively instead of running into max-run.
+
+In short: use it a lot → sessions stay alive; leave it alone → it gets out of the way and your next wake is instant.
 
 ## Maintenance & upgrade
 

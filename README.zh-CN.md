@@ -6,6 +6,18 @@
 
 一个功能完整的深色主题 Web 控制台，把 **[InstaBox](https://instabox.sh/docs) 的全部 API**（`api.instabox.sh`，160 个操作）搬进浏览器——沙箱管理、终端、桌面、文件、端口、SSH、快照、Secrets、Webhook、监控与用量。只需一个 API Key，无需 CLI 和 SSH 客户端。
 
+## 截图
+
+| 仪表盘 | Web 终端 |
+| --- | --- |
+| ![仪表盘](docs/screenshots/01-dashboard.png) | ![终端](docs/screenshots/14-terminal.png) |
+
+| 沙箱详情（13 个标签页） | VNC 桌面 |
+| --- | --- |
+| ![沙箱详情](docs/screenshots/13-sandbox-overview.png) | ![桌面](docs/screenshots/16-desktop.png) |
+
+更多见 [`docs/screenshots/`](docs/screenshots)：矩阵视图、模板、端口、快照、Secrets、Webhook、收件箱、导出、用量、API 控制台、设置、文件管理器。
+
 ## 功能
 
 | 模块 | 能力 |
@@ -175,10 +187,35 @@ docker run -d -p 3000:3000 --restart unless-stopped --name instabox-ui instabox-
 | 变量 | 默认 | 说明 |
 |---|---|---|
 | `PORT` | 生产 3000 / 开发 8787 | 监听端口 |
+| `HOST` | 云主机部署默认 127.0.0.1 | 绑定地址——nginx 后置时绑本机回环，XFF 伪造不了 IP 门 |
 | `INSTABOX_API` | https://api.instabox.sh | 上游 API 地址 |
 | `INSTABOX_API_KEY` | — | 客户端未带 Key 时由服务端注入 |
 | `CONSOLE_PASSWORD` | — | **控制台访问密码**——设置后 `/p/*` 与 `/ws` 需要登录（界面弹出密码框）；静态资源放行以便加载登录页。Cookie 会话 30 天 |
+| `ALLOW_IPS` | —（关闭） | 客户端 IP 放行名单，逗号分隔 IPv4/IPv6 CIDR（按 XFF 最后一跳判定）。`/healthz` 与 `/hook` 豁免 |
 | `ALLOW_WS_HOSTS` | — | 额外允许的 WS 目标域后缀（逗号分隔） |
+| `DSH_PUBLIC_HOST` | — | 内置 `/dsh` 挂载使用的对外权威 `Host[:Port]` |
+| `DSH_UPSTREAM` | http://127.0.0.1:5080 | 内置 `/dsh` 挂载的上游 |
+| `DSH_MOUNTS` | — | 额外挂载，`前缀=https://上游`，逗号分隔 |
+| `KEEPALIVE` / `KEEPALIVE_MODE` | 1 / `use` | activity-lease 保活探针（见[保活语义](#保活语义免费额度)）；模式：`use`（跟随真实使用）/ `always` / `off` |
+| `KEEPALIVE_USE_WINDOW` | 1200 | 距最近一次真实使用多少秒内才续租（须低于 1800 秒闲置阈值） |
+| `KEEPALIVE_INTERVAL` / `KEEPALIVE_LEASE_SEC` | 120 / 600 | 续租周期与单次 lease TTL（30–3600） |
+| `KEEPALIVE_WAKE` | 0 | `1` = 对已暂停机器也下 lease（会唤醒它） |
+| `KEEPALIVE_PERSIST` / `KEEPALIVE_FILE` | 1 / `/data/instabox-console-secrets/keepalive-keys.json` | 学习到的账户 Key 落盘（chmod 0600） |
+| `KEEPALIVE_PREEMPT` | 0 | `1` = run 快到期且机器空闲时主动 suspend（见保活语义） |
+| `KEEPALIVE_PREEMPT_REMAIN` / `_IDLE` / `_CPU` | 15 / 20 / 5 | run 剩余分钟数 / 空闲分钟数 / CPU % 阈值 |
+
+探针附加端点：`GET /keepalive`（状态）、`POST /keepalive/tick`（手动触发）、`POST /cooldown/reset`（把某台机器的 max-run 冷却阶梯归零）。
+
+## 保活语义（免费额度）
+
+为什么不无脑续租？因为免费版有两个互不相同的计时器，而 lease 只能推迟其中一个：
+
+- **闲置暂停（idle pause）**——30 分钟无使用即触发。固定不可改，**且不计冷却**——触发后下一次唤醒立即可用。activity lease 可以推迟它，但 lease 本身不算“使用”。
+- **Max-run**——每次 run 从 120 分钟起步，随真实使用最多涨到 480 分钟；到点后进入**冷却阶梯**，按连续 max-run 次数升级：第 1 次约 5–20 分钟、第 2 次约 60–75 分钟、第 3 次起约 120–135 分钟。
+
+所以默认 `KEEPALIVE_MODE=use` 只在 `KEEPALIVE_USE_WINDOW` 内**发生过真实使用**（exec / 文件 / 端口 / 桌面 / 终端 / SSH——列表类请求不算）才续租；否则主动放掉 lease，让机器干净地闲置暂停——冷却阶梯随之归零。`KEEPALIVE_PREEMPT=1` 提供更温和的收尾：run 快到期但机器确实空闲（CPU < 5%）时，主动 suspend 而不是硬扛到 max-run。
+
+一句话：常用 → 帮你保住会话；不用 → 让路，下次唤醒立即可用。
 
 ## 维护与升级
 

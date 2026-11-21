@@ -22,6 +22,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
+import { createKeeper } from './keepalive.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, '..', 'dist');
@@ -235,6 +236,11 @@ const FWD_RES_HEADERS = new Set([
 
 function log(...args) { console.log(new Date().toISOString(), ...args); }
 
+// ---------------------------------------------------------------- 保活探针
+// 平台只把 wake / activity-lease / 终端访问算作活动；GET 列表不算。
+// 前端只有手动 lease 按钮，所以续期放在服务端常驻做（见 server/keepalive.mjs）。
+const keeper = createKeeper({ upstream: UPSTREAM, log });
+
 // ---------------------------------------------------------------- REST 代理
 function proxyRest(req, res) {
   if (!authOk(req)) {
@@ -260,6 +266,16 @@ function proxyRest(req, res) {
     if (FWD_REQ_HEADERS.has(k.toLowerCase()) && v != null) headers[k] = v;
   }
   if (qKey) headers['x-api-key'] = qKey;
+  // 平台要求所有变更类请求带 Idempotency-Key（缺失直接 400 bad_request，
+  // 前端 bundle 从来没发过 → 控制台里 start/stop/suspend/resume/wake/PATCH 全被拒）。
+  // 客户端没带就由代理补一个，保证"点一下按钮"永远能生效。
+  if (!headers['idempotency-key'] && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    headers['idempotency-key'] = crypto.randomUUID();
+  }
+  // 保活探针顺带学习账户 API Key（浏览器经 __key 传，或客户端自带请求头）
+  if (qKey) keeper.adopt(String(qKey));
+  else if (headers['x-api-key']) keeper.adopt(String(headers['x-api-key']));
+  else if (headers.authorization && /^Bearer\s+/i.test(headers.authorization)) keeper.adopt(headers.authorization.replace(/^Bearer\s+/i, ''));
   if (qCT) headers['content-type'] = qCT;
   headers['accept-encoding'] = 'identity';
   headers.host = upstreamUrl.host;
@@ -267,6 +283,8 @@ function proxyRest(req, res) {
     headers['x-api-key'] = SERVER_KEY;
   }
   // 诊断行：只记来源与存在性，不记任何值
+  // 真实使用信号（平台把 exec/文件/端口/桌面/终端/SSH 算"使用"，列表和详情不算）
+  keeper.markUse(innerPath);
   log('in:', req.method, `key=${qKey ? 'q' : headers['x-api-key'] ? 'hdr' : 'none'}`, `ct=${qCT || req.headers['content-type'] || '-'}`);
 
   const upReq = https.request(
@@ -395,6 +413,7 @@ function handleUpgrade(req, socket, head) {
 
   const target = u.searchParams.get('url');
   if (!target) return socket.destroy();
+  keeper.markUse(target); // 终端/VNC/SSH 的 WS 流量也算"真实使用"
   let t;
   try { t = new URL(target); } catch { return socket.destroy(); }
   if (t.protocol !== 'wss:' && t.protocol !== 'ws:') return socket.destroy();
@@ -520,6 +539,8 @@ function dshHostFor(req, mount) {
 }
 
 function handleDsh(req, res, mount) {
+  // 挂载流量就是"通过公网端口访问机器"= 平台认定的真实使用，登记给保活探针
+  keeper.markUseHost(mount.url.host);
   if (!authOk(req)) {
     res.writeHead(401, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
@@ -662,6 +683,41 @@ const server = http.createServer((req, res) => {
   if (req.url === '/auth' || req.url.startsWith('/auth?')) return handleAuth(req, res);
   if (pathname === '/hook' || pathname === '/hook-events') return handleHook(req, res, pathname);
   if (pathname === '/feishu') return handleFeishu(req, res);
+  if (pathname === '/cooldown/reset') {
+    // 手动把 max-run 冷却阶梯归零：POST /cooldown/reset {"machine":"名字或 m_ 开头 id","hold":0}
+    if (!authOk(req)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+      return;
+    }
+    let raw = '';
+    req.on('data', (c) => { raw += c; if (raw.length > 4096) req.destroy(); });
+    req.on('end', async () => {
+      let body = {};
+      try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
+      const out = await keeper.resetStep(body.machine || body.id || body.name, { hold: Number(body.hold) || 0 });
+      res.writeHead(out.ok ? 200 : 409, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(out));
+    });
+    return;
+  }
+  if (pathname === '/keepalive' || pathname === '/keepalive/tick') {
+    if (!authOk(req)) {
+      res.writeHead(401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { code: 'console_auth', message: 'console login required' } }));
+      return;
+    }
+    if (pathname === '/keepalive/tick' && req.method === 'POST') {
+      keeper.tick('manual').then(() => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(keeper.status()));
+      });
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(keeper.status()));
+    return;
+  }
   if (req.url.startsWith('/p/')) return proxyRest(req, res);
   const dshMount = matchDshMount(pathname);
   if (dshMount) return handleDsh(req, res, dshMount);
@@ -688,10 +744,15 @@ server.headersTimeout = 120000;
 server.listen(PORT, HOST, () => {
   log(`InstaBox WebUI 代理已启动: http://${HOST || 'localhost'}:${PORT}  →  ${UPSTREAM}${SERVER_KEY ? '（服务端注入 API Key）' : ''}`);
   for (const m of DSH_MOUNTS) log(`dsh 挂载: ${m.prefix}/ → ${m.upstream}`);
+  log(ALLOW_IPS.length ? `ip-gate 放行名单: ${ALLOW_IPS.join(', ')}` : 'ip-gate 未启用（ALLOW_IPS 为空）');
   if (!fs.existsSync(DIST)) log('提示: dist/ 不存在，开发模式请另开终端运行 npm run dev');
+  keeper.start();
 });
 
 // 进程级兜底：代理服务容忍单个未捕获异常（打日志继续跑），避免 WS 边角情况打死整个服务
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => { try { keeper.stop(); } catch { /* ignore */ } process.exit(0); });
+}
 process.on('uncaughtException', (err) => {
   log('uncaughtException:', err.stack?.slice(0, 400) || err.message);
 });
